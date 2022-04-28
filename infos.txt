@@ -1,0 +1,41 @@
+polyscope
+
+déroulement de l'algo
+
+execution n fois :
+	on récupère les informations de chaque région actuelle (barycentre, normale, les faces qu'il la compose)
+
+	on récupère les faces qui représentent le mieux chaque région (barycentre et normale proches de ceux de la région) -> faces graines
+	(cas où l'on vient de commencer : toutes les faces représentent leur propre région)
+
+	on crée une file contenant les faces adjacentes aux faces graines
+
+	on assigne chaque face de la file la région qui représente le mieux celle-ci
+
+	parmi les régions assignées : on rajoute 3 régions : une qui sera composé des deux régions avec le moins d'erreur, et les deux autres sont les deux parties de régions qui font partie de la pire région
+
+	on récupère ensuite pour chaque région les régions qui lui sont adjacentes
+
+	et ensuite on va regarder pour rajouter des régions qui sont des fusion de régions adjacentes qui sont très similaires
+
+	enfin, on reconstruit les nouvelles mailles à partir des régions récupérées
+
+1. Obtenir les graines de chaque région
+2. Réassigner à chaque face la région qui correspond le mieux
+3. Réarranger les régions (réduire la pire, tenter de créer de plus grandes régions)
+4. Reconstruire les mailles
+------------------------------------------------------------------
+kmeans à la base : marche pour tout type de données
+le notre -> spécifique à la matérialisation 3d
+
+autre groupe avait fait kmeans sur des voxels (pixels 3d)
+
+choses à faire :
+transformer le code pour le faire marcher
+insérer l'affichage avec polyscope
+
+
+dans le futur :
+
+calculer meilleur plan pour représenter chaque région
+tweak le code pour faire en sorte que au lieu de faire un nombre d'exécution arbitraire, on s'arrête à la place quand le taux d'erreur est inférieur à un seuil donné

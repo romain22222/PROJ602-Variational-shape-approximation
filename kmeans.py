@@ -7,25 +7,17 @@
 ##     914, August 2004.
 ## [2] Robert McNeel & Associates. 2012. Rhinoceros: Release 5.0.
 
-################################     LOG     ##################################
-
-## 01
-## added clustersMap as KMeans output.
-
-#############################      END LOG     ################################
-
-import Rhino
-import rhinoscriptsyntax as rs
-import rhinoscript.utility as rhutil
-import scriptcontext
+import Rhino # A REMPLACER
+import rhinoscriptsyntax as rs # A REMPLACER
+import scriptcontext # A REMPLACER
 
 import random
 import heapq
 import time
-import itertools
+import itertools # A VERIFIER
 
 import sys
-import gc
+import gc # A REMPLACER
 
 # -- KMeans --
 # fonction principale du Variational Shape Approximation
@@ -47,16 +39,15 @@ import gc
 def KMeans(REDRAW, n, proxys, obj, faceCenters, faceNormals, faceCount, faceIndexes, vertices, faceVertexIndexes, areaFaces, faceEdges, weightedAverages, adjacentToFaces):
 
     startKMeans = time.time()
-    counter = 0
     colors = []
     #colors = [(157, 113, 233), (5, 35, 64), (4, 144, 116), (219, 69, 32), (75, 183, 53), (251, 161, 47), (212, 185, 239), (199, 128, 62), (18, 243, 188), (52, 36, 78), (104, 168, 195), (65, 116, 130), (165, 202, 65), (44, 21, 222), (183, 27, 128), (42, 175, 150), (195, 54, 201), (185, 61, 16), (192, 214, 240), (171, 243, 48), (131, 208, 107), (37, 115, 157), (93, 9, 67), (179, 85, 215), (237, 167, 163), (16, 15, 101), (190, 232, 68), (37, 112, 238), (133, 174, 106), (178, 129, 158), (145, 250, 214), (16, 168, 69), (115, 146, 167), (226, 204, 165), (83, 16, 224), (241, 204, 149), (109, 175, 198), (138, 237, 11), (236, 94, 95), (125, 159, 197), (50, 171, 136), (164, 34, 91), (0, 220, 255), (93, 157, 125), (190, 219, 27), (158, 210, 96), (13, 148, 226), (213, 68, 210), (215, 6, 12), (203, 36, 74), (230, 245, 242), (226, 176, 32), (29, 174, 238), (132, 240, 239), (150, 16, 17), (72, 204, 18), (239, 77, 139), (254, 111, 11), (227, 93, 103), (181, 205, 27)]
     for i in range(len(proxys)):
-        color = Randomcolor(i)
+        color = Randomcolor()
         colors.append(color)
     
     for i in range(0, n):
         startCYCLE = time.time()
-        print('CYCLE ', counter)
+        print('CYCLE ', i)
         
         # calcule le baricentre de chaque sous-région
         # le proxy est une combinaison des baricentres des sous-régions et de leurs normales
@@ -83,11 +74,11 @@ def KMeans(REDRAW, n, proxys, obj, faceCenters, faceNormals, faceCount, faceInde
         ## This iterates through each face in a mesh trying to find which face
         ## has least metric error. The face with least error will be the seed
         ## face from which the region will grow.
-        ## If counter = 0, region = proxy since there is only one face in each
+        ## If i = 0, region = proxy since there is only one face in each
         ## region.
 
-        # si le compteur > 0 : on veut récupérer une face qui représentera chaque région
-        if counter > 0:
+        # si i > 0 : on veut récupérer une face qui représentera chaque région
+        if i > 0:
             ## This returns regions = [[regionIndex,
             ##                          [faceIndex],
             ##                          proxyMesh,
@@ -99,7 +90,7 @@ def KMeans(REDRAW, n, proxys, obj, faceCenters, faceNormals, faceCount, faceInde
                                    faceNormals,
                                    areaFaces)
 
-        # si le compteur = 0 :: region = proxy ==> il n'y a qu'une face dans chaque region
+        # si le i = 0 :: region = proxy ==> il n'y a qu'une face dans chaque region
         else:
             regions = proxys
 
@@ -222,27 +213,15 @@ def KMeans(REDRAW, n, proxys, obj, faceCenters, faceNormals, faceCount, faceInde
             gc.collect() # A CHANGER
 
         timeTaken = (time.time() - startCYCLE)
-        print('CYCLE ', counter, 'TOOK (times in milliseconds) = ', timeTaken)
-        #print '=================================================='
-
-        counter += 1
-
+        print('CYCLE ', i, 'TOOK (times in milliseconds) = ', timeTaken)
+        print('==================================================')
         ###################### ITERATION END IN FOR LOOP ######################
 
     print('--------------------------------------------------')
-    timeTaken = (time.time() - startKMeans)//1000
-    print(f"KMeans took %s seconds to finish", timeTaken)
-
+    print(f"KMeans took %s seconds to finish", (time.time() - startKMeans)//1000)
     return proxys, clustersMap
 
 ################################## END MAIN ###################################
-
-
-
-
-
-
-
 
 
 
@@ -293,7 +272,6 @@ def InsertRegions(regions, insertRegions):
         region[0] = index
 
     return regions
-
 
 # permet de recuperer tous les proxy de la figure 
 # parametres : proxy : liste des proxy de la figure
@@ -406,7 +384,6 @@ def GetProxySeed(proxys, faceNormals, areaFaces):
 
     return regions
 
-
 def MetricError(regionIndex, faceIndexes, faceNormals, areaFaces, proxyNormal):
     errors = []
 
@@ -427,7 +404,6 @@ def MetricError(regionIndex, faceIndexes, faceNormals, areaFaces, proxyNormal):
 
     ## This returns a list errors = [[error, regionIndex, index]]
     return errors
-
 
 def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
     ## This will calculate the error metric according to L 2,1.
@@ -450,7 +426,6 @@ def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
     #queue.sort(reverse = True)
     ## This returns a list queue = [[error, regionIndex, index], [...]]
     return queue
-
 
 def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
     ## This will calculate the error metric according to L 2,1.
@@ -478,7 +453,6 @@ def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
 
     ## This returns a list queue = [(error, regionIndex, index), (...)]
     return queue
-
 
 def AssignToRegion(faceNormals, vertices, faceVertexIndexes, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
     ## Container list for the items popped from the priority list.
@@ -523,7 +497,6 @@ def AssignToRegion(faceNormals, vertices, faceVertexIndexes, areaFaces, adjacent
 
     return (regions, worst)
 
-
 def AssignToWorstRegion(faceNormals, vertices, faceVertexIndexes, areaFaces, adjacentFaces, regions, queue, assignedIndexes, oldRegionFaces):
     ## queue = [[error, regionIndex, index] , [...]]
     ## Container list for the faces in the old region.
@@ -563,7 +536,6 @@ def AssignToWorstRegion(faceNormals, vertices, faceVertexIndexes, areaFaces, adj
                                             s)
 
     return (regions)
-
 
 # -- BuildQueue --
 # fonction qui construit la file d'attente des faces à traiter
@@ -609,7 +581,6 @@ def BuildQueue(regions, faceNormals, areaFaces, adjacentToFaces):
                             seedLocality)
 
     return (queue, assignedIndexes)
-
 
 def SplitRegion(mesh, faceCenters, faceNormals, vertices, faceVertexIndexes, areaFaces, adjacentFaces, weightedAverages, regions, worst):
     ## worst = [error,
@@ -687,7 +658,6 @@ def SplitRegion(mesh, faceCenters, faceNormals, vertices, faceVertexIndexes, are
     ##                   [originalRegionIndex]]]
     return splitRegions
 
-
 def FindAdjacentRegions(mesh_id, faceEdges, regions, addCommonEdges=False):
     ## This returns a list with the adjacent regions with structure:
     ## adjacentRegions = [[regionIndex, adjacent region index], ...]
@@ -716,7 +686,6 @@ def FindAdjacentRegions(mesh_id, faceEdges, regions, addCommonEdges=False):
     #print 'Adjacent Regions = ', adjacentRegions
 
     return adjacentRegions
-
 
 def FindRegionsToCombine(regions, adjacentRegions, faceNormals, weightedAverages, areaFaces):
     ## This will find the two regions, that when combined have the least metric
@@ -838,15 +807,14 @@ def JoinMeshes(mesh_id_A, mesh_id_B, delete_input=False):
             mesh_B.VertexColors[i] = mesh_A_Color
     except IndexError:
         mesh_A.Append(mesh_B)
-    rc = scriptcontext.doc.Objects.AddMesh(mesh_A)
+    rc = scriptcontext.doc.Objects.AddMesh(mesh_A) # A CHANGER
 
     if delete_input:
         for id in object_ids:
             guid = id
-            scriptcontext.doc.Objects.Delete(guid,True)
+            scriptcontext.doc.Objects.Delete(guid,True) # A CHANGER
 
     return rc
-
 
 def GrowSeeds(mesh, faceCount, subFaceIndexes, faceVertexIndexes, vertices, color = (155, 155, 155) ):
     ## This will create a new mesh from the indexes in subFaceIndexes. 
@@ -896,22 +864,6 @@ def GrowSeeds(mesh, faceCount, subFaceIndexes, faceVertexIndexes, vertices, colo
     colors = [color for i in newVertices]
 
     return rs.AddMesh(newVertices, newFaceIndexes, vertex_colors=colors), mapa # A CHANGER
-                      
 
-
-def Randomcolor(self):
-    #colors = []
-
-    r = random.randint(0,255)
-    g = random.randint(0,255)
-    b = random.randint(0,255)
-
-    colors = (r,g,b)
-
-    return colors
-
-
-
-#==============================================================================
-#                                   END OF MODULE
-#==============================================================================  
+def Randomcolor():
+    return (random.randint(0,255),random.randint(0,255),random.randint(0,255))
