@@ -22,6 +22,38 @@ import itertools
 import sys
 # import gc # A REMPLACER
 ID_MESH_LAST = 0
+
+class Mesh:
+    def __init__(self, vertices, faces):
+        self.vertices = vertices
+        self.faces = faces
+    
+    def getMeshAreaCentroid(self):
+        meshVolume = 0
+        temp = [0,0,0]
+
+        for face in self.faces:
+            v1 = self.vertices[face[0]]
+            v2 = self.vertices[face[1]]
+            v3 = self.vertices[face[2]]
+            vect1 = v2-v1
+            vect2 = v3-v1
+            center = (v1 + v2 + v3) / 3
+            area = np.linalg.norm(
+                np.array(
+                    [
+                        vect1[1]*vect2[2]-vect1[2]*vect2[1],
+                        vect1[2]*vect2[0]-vect1[0]*vect2[2],
+                        vect1[0]*vect2[1]-vect1[1]*vect2[0]
+                        ]
+                    )
+                ) * .5
+            meshVolume += area
+            temp = center * area
+
+        return temp / meshVolume
+
+        
 # -- KMeans --
 # fonction principale du Variational Shape Approximation
 # parametres : REDRAW : help affichage en temps réel
@@ -195,18 +227,21 @@ def KMeans(REDRAW, n, proxys, obj, faceCenters, faceNormals, faceCount, faceInde
         clustersMap = []
         for region in regions:
             # region[2] : proxyMesh :: le graphe qui representait la surface
-            # rs.DeleteObjects(region[2]) # A CHANGER -> supprime l'ancienne maille représentant la région, trouver un représentant polyscope
+            # rs.DeleteObjects(region[2]) # CHANGé -> supprime l'ancienne maille représentant la région
+            ps.remove_surface_mesh(region[6])
             newProxyIndexes = region[1] 
             # ... 
-            newProxyMesh, vertexMap = GrowSeeds(obj,
-                                                faceCount,
-                                                region[1],
+            newPolyMeshName, vertexMap, newProxyMesh = GrowSeeds(region[1],
                                                 faceVertexIndexes,
                                                 vertices,
                                                 colors[region[0]])
             newProxys.append([region[0], 
                               newProxyIndexes,
-                              newProxyMesh])
+                              newProxyMesh,
+                              None,
+                              None,
+                              None,
+                              newPolyMeshName])
             clustersMap.append(vertexMap)
         proxys = newProxys
 
@@ -225,9 +260,6 @@ def KMeans(REDRAW, n, proxys, obj, faceCenters, faceNormals, faceCount, faceInde
     return proxys, clustersMap
 
 ################################## END MAIN ###################################
-
-
-
 
 #/#############################################################################
 #/                                 FUNCTIONS                                 ##
@@ -262,8 +294,8 @@ def InsertRegions(regions, insertRegions):
 
     ## Delete meshes from regions to replace.
     for index in remIndexes:
-        if regions[index][2]:
-            ps.remove_surface_mesh(regions[index][2])
+        if regions[index][6]:
+            ps.remove_surface_mesh(regions[index][6])
             # rs.DeleteObject(regions[index][2]) # CHANGé
 
     ## Pop regions to replace.
@@ -293,8 +325,9 @@ def GetProxy(proxys, weightedAverages):
     for proxy in proxys:
         try:
             indexes, mesh  = proxy[1], proxy[2]
-            proxyCenter = [[0,0,0],[0,0,0]] #(rs.MeshAreaCentroid(mesh))
-            # A CHANGER -> pas d'équivalent trivial, permet de calculer le centre de gravité d'une maille, à créer
+            # proxyCenter = [0,0,0] #(rs.MeshAreaCentroid(mesh))
+            proxyCenter = GetMeshAreaCentroid(mesh)
+            # A CHANGER -> pas d'équivalent trivial, permet de calculer le "centre de gravité" d'une maille, à créer
             #print "The faces's center coordinate is (", proxyCenters, ')'
             proxyNormal, proxyVector = GetProxyNormal(indexes, weightedAverages)
             #print "The proxy's normal vector is (", proxyNormals, ')'
@@ -834,7 +867,7 @@ def JoinMeshes(mesh_id_A, mesh_id_B, delete_input=False):
     # return rc
     return None
 
-def GrowSeeds(mesh, faceCount, subFaceIndexes, faceVertexIndexes, vertices, color = (155, 155, 155) ):
+def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices, color = None ):
     ## This will create a new mesh from the indexes in subFaceIndexes. 
     ## Returns the guid of the new mesh. 
     ## subFaceIndexes is a list of indexes of the faces in the region, 
@@ -847,30 +880,24 @@ def GrowSeeds(mesh, faceCount, subFaceIndexes, faceVertexIndexes, vertices, colo
     ## t = vertex indexes of subFaceIndexes
     ## example: t = [(3, 1, 2, 2), (3, 2, 4, 4), (6, 3, 4, 4)]
     t = [faceVertexIndexes[i] for i in subFaceIndexes]
-    #print 't = ', t
     ## r = t flattened
     ## example: r = [3, 1, 2, 2, 3, 2, 4, 4, 6, 3, 4, 4]
     r =  set([i for sublist in t for i in sublist])
-    #r = [i for sublist in [faceVertexIndexes[i] for i in subFaceIndexes] for i in sublist]
-    #print 'r = ', r
 
     ## mapa will map t onto new indexes starting from 0
     ## mapa {original mesh vertex index: new mesh vertex index}
     ## example: mapa {1: 0, 2: 1, 3: 2, 4: 3, 6: 4}
     mapa = dict(list(zip(r, list(range(len(r))))))
-    #print 'mapa = ' , mapa
 
     ## subVertices is a "set" of t.
     ## example: subVertices [1, 2, 3, 4, 6]
     subVertices = list(mapa.keys())
-    #print 'subVertices = ', subVertices
 
     ## newFaceIndexes = vertex Indexes of subFaces mapped with mapa.
     ## example: [[2, 0, 1, 1], [2, 1, 3, 3], [4, 2, 3, 3]]
     newFaceIndexes = []
     for item in t:
         newFaceIndexes.append([mapa[i] for i in item])
-    #print newFaceIndexes
 
     ## These are the coordinates of the vertices
     ## mapped onto their new indexes.
@@ -879,12 +906,11 @@ def GrowSeeds(mesh, faceCount, subFaceIndexes, faceVertexIndexes, vertices, colo
         newVertices[v] = vertices[k]
     newVertices = list(newVertices.values())
 
-    colors = [color for i in newVertices]
-
-    # return rs.AddMesh(newVertices, newFaceIndexes, vertex_colors=colors), mapa # CHANGé
+    newMesh = Mesh(newVertices, newFaceIndexes)
     newId = generateId()
-    ps.register_surface_mesh(newId, newVertices, newFaceIndexes, color=colors)
-    return newId, mapa
+    ps.register_surface_mesh(newId, newVertices, newFaceIndexes, color=color)
+
+    return newId, mapa, newMesh
 
 def generateId():
     global ID_MESH_LAST
@@ -892,19 +918,24 @@ def generateId():
     return ID_MESH_LAST
 
 def Randomcolor():
-    return (random.randint(0,255)/255,random.randint(0,255)/255,random.randint(0,255)/255)
+    return random.randint(0, 255) / 255, random.randint(0, 255) / 255, random.randint(0, 255) / 255
 
 def main():
     ps.init()
 
-    ## sommets
+    # # sommets
     # verts=np.array([[1.,0.,0.],[0.,1.,0.],[-1.,0.,0.],[0.,-1.,0.],[0.,0.,1.]])
-    ## faces (décrit à quels sommets la face est reliée)
+    # # faces (décrit à quels sommets la face est reliée)
     # faces=[[0,1,2,3],[1,0,4],[2,1,4],[3,2,4],[0,3,4]]
-    ## maille
+    # # maille
     # ps.register_surface_mesh("my mesh", verts, faces )
     
     obj = load_obj( 'helmet.obj')
     ps_mesh = ps.register_surface_mesh("helmet", obj.only_coordinates(), obj.only_faces() )
-
+    mesh = Mesh(obj.only_coordinates(), obj.only_faces())
+    print(mesh.getMeshAreaCentroid())
+    # GetMeshAreaCentroid("my mesh")
     ps.show()
+
+if __name__ == '__main__':
+    main()
