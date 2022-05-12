@@ -7,18 +7,21 @@
 ##     914, August 2004.
 ## [2] Robert McNeel & Associates. 2012. Rhinoceros: Release 5.0.
 
-import Rhino # A REMPLACER
-import rhinoscriptsyntax as rs # A REMPLACER
-import scriptcontext # A REMPLACER
+# import Rhino # A REMPLACER
+# import rhinoscriptsyntax as rs # A REMPLACER
+# import scriptcontext # A REMPLACER
 
+import polyscope as ps
+import numpy as np
+from wavefront import *
 import random
 import heapq
 import time
-import itertools # A VERIFIER
+import itertools
 
 import sys
-import gc # A REMPLACER
-
+# import gc # A REMPLACER
+ID_MESH_LAST = 0
 # -- KMeans --
 # fonction principale du Variational Shape Approximation
 # parametres : REDRAW : help affichage en temps réel
@@ -192,7 +195,7 @@ def KMeans(REDRAW, n, proxys, obj, faceCenters, faceNormals, faceCount, faceInde
         clustersMap = []
         for region in regions:
             # region[2] : proxyMesh :: le graphe qui representait la surface
-            rs.DeleteObjects(region[2]) # A CHANGER
+            # rs.DeleteObjects(region[2]) # A CHANGER -> supprime l'ancienne maille représentant la région, trouver un représentant polyscope
             newProxyIndexes = region[1] 
             # ... 
             newProxyMesh, vertexMap = GrowSeeds(obj,
@@ -208,9 +211,9 @@ def KMeans(REDRAW, n, proxys, obj, faceCenters, faceNormals, faceCount, faceInde
         proxys = newProxys
 
         ## This is used to enable real time rendering of the script. 
-        if REDRAW:
+        # if REDRAW:
             # permet de raffraichir la fenetre a chauque iteration
-            gc.collect() # A CHANGER
+            # gc.collect() -> useless car polyscope redraw quand y'a un changement
 
         timeTaken = (time.time() - startCYCLE)
         print('CYCLE ', i, 'TOOK (times in milliseconds) = ', timeTaken)
@@ -260,7 +263,8 @@ def InsertRegions(regions, insertRegions):
     ## Delete meshes from regions to replace.
     for index in remIndexes:
         if regions[index][2]:
-            rs.DeleteObject(regions[index][2]) # A CHANGER
+            ps.remove_surface_mesh(regions[index][2])
+            # rs.DeleteObject(regions[index][2]) # CHANGé
 
     ## Pop regions to replace.
     for index in remIndexes:
@@ -268,7 +272,7 @@ def InsertRegions(regions, insertRegions):
 
     regions.extend(insertRegions)
 
-    for index, region in enumerate(regions): # A VERIFIER
+    for index, region in enumerate(regions): # VERIFIé -> c'est une version jolie de faire des boucles sur une sorte de "dictionnaire"
         region[0] = index
 
     return regions
@@ -289,7 +293,8 @@ def GetProxy(proxys, weightedAverages):
     for proxy in proxys:
         try:
             indexes, mesh  = proxy[1], proxy[2]
-            proxyCenter = (rs.MeshAreaCentroid(mesh)) # A CHANGER
+            proxyCenter = [[0,0,0],[0,0,0]] #(rs.MeshAreaCentroid(mesh))
+            # A CHANGER -> pas d'équivalent trivial, permet de calculer le centre de gravité d'une maille, à créer
             #print "The faces's center coordinate is (", proxyCenters, ')'
             proxyNormal, proxyVector = GetProxyNormal(indexes, weightedAverages)
             #print "The proxy's normal vector is (", proxyNormals, ')'
@@ -324,16 +329,18 @@ def GetProxyNormal(indexes, weightedAverages):
     ## the face's area and normal.
 
     #proxyNormal : vecteur de direciton des normales du proxy entre 0 et 1
-    proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # A CHANGER
+    # proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # CHANGé -> crée un vecteur à partir de 2 points : ici on initialise à un vecteur nul
+    proxyNormal = np.array([0,0,0])
 
     for index in indexes:
         #on recupere chaque poids de la liste des poids des faces de la region
         weightedAverage = weightedAverages[index]
-        proxyNormal = rs.VectorAdd(proxyNormal, weightedAverage) # A CHANGER
+        proxyNormal = np.add(proxyNormal, weightedAverage) # CHANGé
 
-    proxyNormal, proxyVector = rs.VectorUnitize(proxyNormal), proxyNormal # A CHANGER
+    # proxyNormal, proxyVector = rs.VectorUnitize(proxyNormal), proxyNormal # CHANGé
+    proxyNormal, proxyVector = proxyNormal / np.linalg.norm(proxyNormal), proxyNormal
 
-    #proxyVector : vecteur de direciton des normales du proxy sans ponderation
+    #proxyVector : vecteur de direction des normales du proxy sans ponderation
     return (proxyNormal, proxyVector)
 
 # -- GetProxySeed -- 
@@ -396,9 +403,11 @@ def MetricError(regionIndex, faceIndexes, faceNormals, areaFaces, proxyNormal):
             ## [0,0,0] the result will instead be None. In this case
             ## the above operation will give a TypeError.
             except TypeError:
-                proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # A CHANGER
+                # proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) -> crée un vecteur à partir de 2 points : ici on initialise à un vecteur nul
+                proxyNormal = np.array([0,0,0])
                 normalError = normal - proxyNormal
-            moduleNormalError = normalError.SquareLength # A CHANGER
+            # moduleNormalError = normalError.SquareLength # CHANGé -> équivalent à la norme du vecteur au carré
+            moduleNormalError = (np.linalg.norm(normalError)) ** 2
             error = moduleNormalError * area
             errors.append((error, regionIndex, index))
 
@@ -445,9 +454,11 @@ def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
         ## [0,0,0] the result will instead be None. In this case
         ## the above operation will give a TypeError.
         except TypeError:
-            proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # A CHANGER
+            # proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) -> crée un vecteur à partir de 2 points : ici on initialise à un vecteur nul
+            proxyNormal = np.array([0,0,0])
             normalError = normal - proxyNormal
-        moduleNormalError = normalError.SquareLength # A CHANGER
+        # moduleNormalError = normalError.SquareLength # CHANGé -> équivalent à la norme du vecteur au carré
+        moduleNormalError = (np.linalg.norm(normalError)) ** 2
         error = moduleNormalError * area
         heapq.heappush(queue, (error, regionIndex, index))
 
@@ -501,7 +512,7 @@ def AssignToWorstRegion(faceNormals, vertices, faceVertexIndexes, areaFaces, adj
     ## queue = [[error, regionIndex, index] , [...]]
     ## Container list for the faces in the old region.
     ## This equals the new regions domain.
-    regionDomain = frozenset(oldRegionFaces) # A VERIFIER
+    regionDomain = frozenset(oldRegionFaces) # VERIFIé -> fonctionnent encore
     assignedIndexes = set(assignedIndexes)
     ## This will pop any faces that have been placed
     ## into the queue at BuildQueue which are not in
@@ -672,7 +683,7 @@ def FindAdjacentRegions(mesh_id, faceEdges, regions, addCommonEdges=False):
             regionEdges.extend (faceEdges[i])
         regionsEdges.append([regionIndex, set(regionEdges)])
 
-    for region_A, region_B in itertools.combinations(regionsEdges, 2): # A VERIFIER
+    for region_A, region_B in itertools.combinations(regionsEdges, 2):
         #print region_A[0], region_B[0]
         #print region_A[1], region_B[1]
         commonEdges = set (region_A [1]).intersection(set (region_B [1]))
@@ -692,7 +703,7 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, weightedAverages
     ## error.
     ## adjacentRegions = [[regionIndex, adjacent region index], ...]
 
-    for i, adjacent in enumerate(adjacentRegions): # A VERIFIER
+    for i, adjacent in enumerate(adjacentRegions):
         ## This iterates through adjacentRegions merging the regions of index
         ## adjacentRegions[0] and adjacentRegions[1]. Merged regions are called
         ## mergedRegion. The first iteration calculates the error of all faces
@@ -729,9 +740,11 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, weightedAverages
                 ## [0,0,0] the result will instead be None. In this case
                 ## the above operation will give a TypeError.
                 except TypeError:
-                    proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # A CHANGER
+                    # proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # CHANGé -> crée un vecteur à partir de 2 points : ici on initialise à un vecteur nul
+                    proxyNormal = np.array([0,0,0])
                     normalError = normal - proxyNormal
-                moduleNormalError = normalError.SquareLength # A CHANGER
+                # moduleNormalError = normalError.SquareLength # CHANGé -> équivalent à la norme du vecteur au carré
+                moduleNormalError = (np.linalg.norm(normalError)) ** 2
                 regionError += moduleNormalError * area
 
                 if regionError > maxError:
@@ -769,9 +782,11 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, weightedAverages
                 ## [0,0,0] the result will instead be None. In this case
                 ## the above operation will give a TypeError.
                 except TypeError:
-                    proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # A CHANGER
+                    # proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # CHANGé -> crée un vecteur à partir de 2 points : ici on initialise à un vecteur nul
+                    proxyNormal = np.array([0,0,0])
                     normalError = normal - proxyNormal
-                moduleNormalError = normalError.SquareLength # A CHANGER
+                # moduleNormalError = normalError.SquareLength # CHANGé -> équivalent à la norme du vecteur au carré
+                moduleNormalError = (np.linalg.norm(normalError)) ** 2
                 regionError += moduleNormalError * area
             regionsToCombine = mergedRegion
             maxError = regionError
@@ -795,26 +810,29 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, weightedAverages
     return regionsToCombine
 
 
+# WTF A REMPLACER, chercher plus en détail ce que ca fait et réécrire la fonction
 def JoinMeshes(mesh_id_A, mesh_id_B, delete_input=False):
-    object_ids = (mesh_id_A, mesh_id_B)
+    # object_ids = (mesh_id_A, mesh_id_B)
 
-    mesh_A = rs.coercemesh(mesh_id_A, True) # A CHANGER
-    mesh_B = rs.coercemesh(mesh_id_B, True) # A CHANGER
+    # mesh_A = rs.coercemesh(mesh_id_A, True) # A CHANGER
+    # mesh_B = rs.coercemesh(mesh_id_B, True) # A CHANGER
+    # # WTF A REMPLACER, chercher plus en détail ce que ca fait
 
-    try:
-        mesh_A_Color = mesh_A.VertexColors[0]
-        for i in range((mesh_B.VertexColors.Count)):
-            mesh_B.VertexColors[i] = mesh_A_Color
-    except IndexError:
-        mesh_A.Append(mesh_B)
-    rc = scriptcontext.doc.Objects.AddMesh(mesh_A) # A CHANGER
+    # try:
+    #     mesh_A_Color = mesh_A.VertexColors[0]
+    #     for i in range((mesh_B.VertexColors.Count)):
+    #         mesh_B.VertexColors[i] = mesh_A_Color
+    # except IndexError:
+    #     mesh_A.Append(mesh_B)
+    # rc = scriptcontext.doc.Objects.AddMesh(mesh_A) # A CHANGER
 
-    if delete_input:
-        for id in object_ids:
-            guid = id
-            scriptcontext.doc.Objects.Delete(guid,True) # A CHANGER
+    # if delete_input:
+    #     for id in object_ids:
+    #         guid = id
+    #         scriptcontext.doc.Objects.Delete(guid,True) # A CHANGER
 
-    return rc
+    # return rc
+    return None
 
 def GrowSeeds(mesh, faceCount, subFaceIndexes, faceVertexIndexes, vertices, color = (155, 155, 155) ):
     ## This will create a new mesh from the indexes in subFaceIndexes. 
@@ -863,7 +881,30 @@ def GrowSeeds(mesh, faceCount, subFaceIndexes, faceVertexIndexes, vertices, colo
 
     colors = [color for i in newVertices]
 
-    return rs.AddMesh(newVertices, newFaceIndexes, vertex_colors=colors), mapa # A CHANGER
+    # return rs.AddMesh(newVertices, newFaceIndexes, vertex_colors=colors), mapa # CHANGé
+    newId = generateId()
+    ps.register_surface_mesh(newId, newVertices, newFaceIndexes, color=colors)
+    return newId, mapa
+
+def generateId():
+    global ID_MESH_LAST
+    ID_MESH_LAST += 1
+    return ID_MESH_LAST
 
 def Randomcolor():
-    return (random.randint(0,255),random.randint(0,255),random.randint(0,255))
+    return (random.randint(0,255)/255,random.randint(0,255)/255,random.randint(0,255)/255)
+
+def main():
+    ps.init()
+
+    ## sommets
+    # verts=np.array([[1.,0.,0.],[0.,1.,0.],[-1.,0.,0.],[0.,-1.,0.],[0.,0.,1.]])
+    ## faces (décrit à quels sommets la face est reliée)
+    # faces=[[0,1,2,3],[1,0,4],[2,1,4],[3,2,4],[0,3,4]]
+    ## maille
+    # ps.register_surface_mesh("my mesh", verts, faces )
+    
+    obj = load_obj( 'helmet.obj')
+    ps_mesh = ps.register_surface_mesh("helmet", obj.only_coordinates(), obj.only_faces() )
+
+    ps.show()
