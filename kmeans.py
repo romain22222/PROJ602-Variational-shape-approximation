@@ -97,6 +97,28 @@ def FindRegion(regions, index):
 def RemoveRegion(regions, index):
     return [region for region in regions if region.regionIndex != index]
 
+def calculateNewElementsOfQueue(queue, regionIndex, faces, proxyNormal, isInFindRegionToCombine=False, paramsFindRegionToCombine=None):
+    for index in faces:
+        area = areaFaces[index]
+        normal = faceNormals[index]
+        try:
+            normalError = normal - proxyNormal
+        except TypeError:
+            proxyNormal = np.array([0,0,0])
+            normalError = normal - proxyNormal
+        moduleNormalError = (np.linalg.norm(normalError)) ** 2
+        error = moduleNormalError * area
+
+        if isInFindRegionToCombine:
+            if error > paramsFindRegionToCombine["maxError"] and paramsFindRegionToCombine["i"] > 0:
+                break
+            else:
+                paramsFindRegionToCombine["regionsToCombine"] = paramsFindRegionToCombine["mergedRegion"]
+                paramsFindRegionToCombine["maxError"] = error
+        else:
+            queue.append(QueueElement(error, regionIndex, index))
+    return queue
+
 def InsertRegions(regions, insertRegions):
     remIndexes = set()
     for region in insertRegions:
@@ -152,19 +174,7 @@ def GetProxySeed(proxys, faceNormals, areaFaces):
     return regions
 
 def MetricError(regionIndex, faceIndexes, faceNormals, areaFaces, proxyNormal):
-    errors = []
-    for index in faceIndexes:
-            area = areaFaces[index]
-            normal = faceNormals[index]
-            try:
-                normalError = normal - proxyNormal
-            except TypeError:
-                proxyNormal = np.array([0,0,0])
-                normalError = normal - proxyNormal
-            moduleNormalError = (np.linalg.norm(normalError)) ** 2
-            error = moduleNormalError * area
-            errors.append(QueueElement(error, regionIndex, index))
-    return errors
+    return calculateNewElementsOfQueue([], regionIndex, faceIndexes, proxyNormal)
 
 def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
     regionIndex = region.regionIndex
@@ -181,17 +191,7 @@ def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
 def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
     regionIndex = region.regionIndex
     proxyNormal = region.proxyNormal
-    for index in newFaces:
-        area = areaFaces[index]
-        normal = faceNormals[index]
-        try:
-            normalError = normal - proxyNormal
-        except TypeError:
-            proxyNormal = np.array([0,0,0])
-            normalError = normal - proxyNormal
-        moduleNormalError = (np.linalg.norm(normalError)) ** 2
-        error = moduleNormalError * area
-        heapq.heappush(queue, QueueElement(error, regionIndex, index))
+    calculateNewElementsOfQueue(queue, regionIndex, newFaces, proxyNormal)
     return queue
 
 def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
@@ -321,24 +321,9 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces):
         mergedRegion = GetProxy([Proxy(generateId(), region_A.faceIndexes + region_B.faceIndexes, combinaisons=adjacent)])[0]
         regionError = 0
         proxyNormal = mergedRegion.proxyNormal
-        for index in mergedRegion.faceIndexes:
-            area = areaFaces[index]
-            normal = faceNormals[index]
-            try:
-                normalError = normal - proxyNormal
-            except TypeError:
-                # proxyNormal = rs.VectorCreate([0,0,0], [0,0,0]) # CHANGé -> crée un vecteur à partir de 2 points : ici on initialise à un vecteur nul
-                proxyNormal = np.array([0,0,0])
-                normalError = normal - proxyNormal
-            # moduleNormalError = normalError.SquareLength # CHANGé -> équivalent à la norme du vecteur au carré
-            moduleNormalError = (np.linalg.norm(normalError)) ** 2
-            regionError += moduleNormalError * area
-            if regionError > maxError and i > 0:
-                break
-            else:
-                regionsToCombine = mergedRegion
-                maxError = regionError
-
+        calculateNewElementsOfQueue([], _, mergedRegion.faceIndexes, proxyNormal, True, {
+            "maxError":maxError, "regionsToCombine": regionsToCombine, "mergedRegion": mergedRegion, "i": i
+        })
     return regionsToCombine
 
 def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices, color = None ):
