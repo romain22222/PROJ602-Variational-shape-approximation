@@ -39,3 +39,14 @@ dans le futur :
 
 calculer meilleur plan pour représenter chaque région
 tweak le code pour faire en sorte que au lieu de faire un nombre d'exécution arbitraire, on s'arrête à la place quand le taux d'erreur est inférieur à un seuil donné
+
+choses à créer/adapter avant de passer dans kmeans:
+
+V n : le déterminer (juste un nombre d'itération de l'algo)
+V proxys : préparer les proxys (region = [index, [laFace], _(proxynormal), _(polyMesh)])
+V faceNormals : liste des normales de chaque face (précalculé)
+  adjacentToFaces : liste contenant la liste des faces adjacentes à la face i
+V vertices : trivial (obj.only_coordinates)
+V areaFaces : liste des aires de chaque face (précalculé)
+  faceVertexIndexes : à déterminer (utilité : GrowSeeds)
+  faceEdges : à déterminer (utilité : FindAdjacentRegions)
