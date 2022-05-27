@@ -2,7 +2,6 @@ import polyscope as ps
 import numpy as np
 from wavefront import *
 import random
-import heapq
 import time
 import itertools
 
@@ -56,7 +55,7 @@ class Mesh:
         for face in self.faces:
             U = self.vertices[face[1]]-self.vertices[face[0]]
             V = self.vertices[face[2]]-self.vertices[face[0]]
-            normal.append(
+            normals.append(
                 (
                     U[1] * V[2] - U[2] * V[1],
                     U[2] * V[0] - U[0] * V[2],
@@ -64,6 +63,31 @@ class Mesh:
                 )
             )
         return normals
+
+    def getAllAdjacentFaces(self):
+        ajdF = []
+        # on ne peut pas faire une initialisation classique,
+        # car la création d'un set se fait par référence
+        for i in range(len(self.faces)):
+            ajdF.append(set())
+        for i in range(len(self.faces)):
+            for j in range(i+1, len(self.faces)):
+                if len([k for k in [0,1,2] if self.faces[i][k] in self.faces[j]]) > 1:
+                    ajdF[i].add(j)
+                    ajdF[j].add(i)
+        return ajdF
+
+    def getAllFaceEdges(self):
+        faceEdges = []
+        for face in self.faces:
+            faceEdges.append(
+                [
+                    self.vertices[face[0]]-self.vertices[face[1]],
+                    self.vertices[face[0]]-self.vertices[face[2]],
+                    self.vertices[face[2]]-self.vertices[face[1]]
+                ]
+            )
+        return faceEdges
 
 class Proxy:
     def __init__(self, regionIndex, faceIndexes, proxyNormal=None, polyMesh=None):
@@ -164,7 +188,7 @@ def GetProxyNormal(indexes):
     proxyNormal = np.array([0,0,0])
     for index in indexes:
         proxyNormal = np.add(proxyNormal, 1)
-    proxyNormal /= np.linalg.norm(proxyNormal)
+    proxyNormal = proxyNormal / np.linalg.norm(proxyNormal)
     return proxyNormal
 
 def GetProxySeed(proxys, faceNormals, areaFaces):
@@ -209,27 +233,30 @@ def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
     return queue
 
 def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
-    heapq.heapify(queue)
     globalQueue = []
     assignedIndexes = set(assignedIndexes)
     while queue:
-            mostPriority = heapq.heappop(queue)
-            faceIndex =  mostPriority.index
-            if faceIndex not in assignedIndexes:
-                globalQueue.append(mostPriority)
-                regionIndex = mostPriority.regionIndex
-                regions[regionIndex].faceIndexes.append(faceIndex)
-                assignedIndexes.add(faceIndex)
-                newAdjacentFaces = set(adjacentFaces[faceIndex])
-                newAdjacentFaces -= assignedIndexes
-                queue = UpdateQueueNew(FindRegion(regions, regionIndex).regionIndex,
-                                       faceNormals,
-                                       areaFaces,
-                                       queue,
-                                       newAdjacentFaces)
+        mostPriority = queue.pop()
+        faceIndex =  mostPriority.index
+        if faceIndex not in assignedIndexes:
+            globalQueue.append(mostPriority)
+            regionIndex = mostPriority.regionIndex
+            regions[regionIndex].faceIndexes.append(faceIndex)
+            assignedIndexes.add(faceIndex)
+            newAdjacentFaces = set(adjacentFaces[faceIndex])
+            newAdjacentFaces -= assignedIndexes
+            queue = UpdateQueueNew(FindRegion(regions, regionIndex).regionIndex,
+                                   faceNormals,
+                                   areaFaces,
+                                   queue,
+                                   newAdjacentFaces)
 
     globalQueue.sort(key=lambda x: -x.error)
-    worst = globalQueue.pop()
+    try:
+        worst = globalQueue.pop()
+    except IndexError:
+        # Si tous les éléments sont assignés, pas de globalQueue remplie
+        worst = QueueElement(0.0,regions[0].regionIndex,regions[0].faceIndexes[0])
 
     return regions, worst
 
@@ -268,7 +295,7 @@ def BuildQueue(regions, faceNormals, areaFaces, adjacentToFaces):
                             faceNormals,
                             areaFaces,
                             queue,
-                            [adjacentToFaces[seedIndex]])
+                            adjacentToFaces[seedIndex])
     return queue, assignedIndexes
 
 def SplitRegion(faceNormals, areaFaces, adjacentFaces, regions, worst):
@@ -336,9 +363,9 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces):
 def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices, color = None ):
     if not color:
         color = Randomcolor()
-    t = [faceVertexIndexes[i] for i in subFaceIndexes]
-    r =  set([i for sublist in t for i in sublist])
-    mapa = dict(list(zip(r, list(range(len(r))))))
+    verticesOfRegionByFace = [faceVertexIndexes[i] for i in subFaceIndexes]
+    verticesOfRegion =  set([i for sublist in verticesOfRegionByFace for i in sublist])
+    mapa = dict(list(zip(verticesOfRegion, list(range(len(verticesOfRegion))))))
     subVertices = list(mapa.keys())
     newFaceIndexes = []
     for item in t:
@@ -363,18 +390,37 @@ def Randomcolor():
 def main():
     ps.init()
 
-    # # sommets
+    # # pyramide
     # verts=np.array([[1.,0.,0.],[0.,1.,0.],[-1.,0.,0.],[0.,-1.,0.],[0.,0.,1.]])
-    # # faces (décrit à quels sommets la face est reliée)
     # faces=[[0,1,2,3],[1,0,4],[2,1,4],[3,2,4],[0,3,4]]
-    # # maille
-    # ps.register_surface_mesh("my mesh", verts, faces )
-    
-    obj = load_obj( 'helmet.obj')
-    ps_mesh = ps.register_surface_mesh("helmet", obj.only_coordinates(), obj.only_faces() )
-    mesh = Mesh(obj.only_coordinates(), obj.only_faces())
-    KMeans(10, [Proxy(generateId(),[face]) for i in range(mesh.faces)], mesh.getAllFacesNormals(), mesh.vertices, TODO, mesh.getAllFacesArea(), TODO, TODO)
+    # mesh = Mesh(verts, faces)
+
+    # # dé à 8 faces
+    verts=np.array([[1.,0.,0.],[-1.,0.,0.],[0.,1.,0.],[0.,-1.,0.],[0.,0.,1.],[0.,0.,-1.]])
+    faces=[[0,2,4],[0,2,5],[0,3,4],[0,3,5],[1,2,4],[1,2,5],[1,3,4],[1,3,5]]
+    mesh = Mesh(verts, faces)
+
+    # casque (attention lourd)
+    # obj = load_obj( 'helmet.obj')
+    # ps_mesh = ps.register_surface_mesh("helmet", obj.only_coordinates(), obj.only_faces() )
+    # mesh = Mesh(obj.only_coordinates(), obj.only_faces())
+    KMeans(
+        10,
+        [Proxy(generateId(),[i]) for i in range(len(mesh.faces))],
+        mesh.getAllFacesNormals(),
+        mesh.vertices,
+        mesh.faces,
+        mesh.getAllFacesArea(),
+        mesh.getAllFaceEdges(),
+        mesh.getAllAdjacentFaces()
+    )
     ps.show()
+
+    # print(mesh.getAllFacesArea())
+    # print(mesh.getAllFacesNormals())
+    # print(mesh.getAllAdjacentFaces())
+    # print(mesh.getAllFaceEdges())
+
 
 if __name__ == '__main__':
     main()

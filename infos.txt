@@ -45,8 +45,8 @@ choses à créer/adapter avant de passer dans kmeans:
 V n : le déterminer (juste un nombre d'itération de l'algo)
 V proxys : préparer les proxys (region = [index, [laFace], _(proxynormal), _(polyMesh)])
 V faceNormals : liste des normales de chaque face (précalculé)
-  adjacentToFaces : liste contenant la liste des faces adjacentes à la face i
+V adjacentToFaces : liste contenant la liste des faces adjacentes à la face i
 V vertices : trivial (obj.only_coordinates)
 V areaFaces : liste des aires de chaque face (précalculé)
-  faceVertexIndexes : à déterminer (utilité : GrowSeeds)
-  faceEdges : à déterminer (utilité : FindAdjacentRegions)
+V faceVertexIndexes : correspond à la liste des vertices par face (donné par mesh.faces)
+  faceEdges : correspond à la liste des VECTEURS par face
