@@ -49,4 +49,4 @@ V adjacentToFaces : liste contenant la liste des faces adjacentes à la face i
 V vertices : trivial (obj.only_coordinates)
 V areaFaces : liste des aires de chaque face (précalculé)
 V faceVertexIndexes : correspond à la liste des vertices par face (donné par mesh.faces)
-  faceEdges : correspond à la liste des VECTEURS par face
+V faceEdges : correspond à la liste des VECTEURS par face

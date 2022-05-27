@@ -19,6 +19,12 @@ def calculateAreaOfTriangularFace(vect1, vect2):
                     )
                 ) * .5
 
+def findEdgeInCorr(edge, corres):
+    for i in range(len(corres)):
+        if edge[0] == corres[i][0] and edge[1] == corres[i][1] and edge[2] == corres[i][2]:
+            return i
+    return len(corres)
+
 class Mesh:
     def __init__(self, vertices, faces):
         self.vertices = vertices
@@ -79,14 +85,19 @@ class Mesh:
 
     def getAllFaceEdges(self):
         faceEdges = []
+        correspondance = []
         for face in self.faces:
-            faceEdges.append(
-                [
-                    self.vertices[face[0]]-self.vertices[face[1]],
-                    self.vertices[face[0]]-self.vertices[face[2]],
-                    self.vertices[face[2]]-self.vertices[face[1]]
-                ]
-            )
+            p1 = findEdgeInCorr(self.vertices[face[0]]-self.vertices[face[1]], correspondance)
+            if p1 == len(correspondance):
+                correspondance.append(self.vertices[face[0]]-self.vertices[face[1]])
+            p2 = findEdgeInCorr(self.vertices[face[0]] - self.vertices[face[2]], correspondance)
+            if p2 == len(correspondance):
+                correspondance.append(self.vertices[face[0]] - self.vertices[face[2]])
+            p3 = findEdgeInCorr(self.vertices[face[2]] - self.vertices[face[1]], correspondance)
+            if p3 == len(correspondance):
+                correspondance.append(self.vertices[face[2]] - self.vertices[face[1]])
+
+            faceEdges.append([p1,p2,p3])
         return faceEdges
 
 class Proxy:
@@ -121,12 +132,15 @@ def KMeans(n, proxys, faceNormals, vertices, faceVertexIndexes, areaFaces, faceE
         newProxys = []
         clustersMap = []
         for region in regions:
-            ps.remove_surface_mesh(region.polyMesh)
+            try:
+                ps.remove_surface_mesh(region.polyMesh)
+            except TypeError:
+                pass
             newProxyIndexes = region.faceIndexes
             newPolyMeshName, vertexMap, newProxyMesh = GrowSeeds(region.faceIndexes,
                                                 faceVertexIndexes,
-                                                vertices,
-                                                colors[region.regionIndex])
+                                                vertices)#,
+                                                # colors[region.regionIndex])
             newProxys.append(Proxy(region.regionIndex,
                               newProxyIndexes,
                               newProxyMesh,
@@ -164,18 +178,6 @@ def calculateNewElementsOfQueue(queue, regionIndex, faces, proxyNormal, areaFace
     return paramsFindRegionToCombine if isInFindRegionToCombine else queue
 
 def InsertRegions(regions, insertRegions):
-    remIndexes = set()
-    for region in insertRegions:
-        remIndexes.update(region.regionIndex)
-
-    for index in remIndexes:
-        relatedRegion = FindRegion(regions,index)
-        if relatedRegion.polyMesh:
-            ps.remove_surface_mesh(relatedRegion.polyMesh)
-
-    for index in remIndexes:
-        regions = RemoveRegion(regions,index)
-
     regions.extend(insertRegions)
     return regions
 
@@ -331,24 +333,22 @@ def FindAdjacentRegions(faceEdges, regions):
         for i in region.faceIndexes:
             regionEdges.extend(faceEdges[i])
         regionsEdges.append([regionIndex, set(regionEdges)])
-
     for region_A, region_B in itertools.combinations(regionsEdges, 2):
-        commonEdges = set(region_A.faceIndexes).intersection(set(region_B.faceIndexes))
-        if commonEdges:
-            adjacentRegions.append([region_A.regionIndex, region_B.regionIndex])
+        if region_A[1].intersection(region_B[1]):
+            adjacentRegions.append([region_A[0], region_B[0]])
 
     return adjacentRegions
 
 def FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces):
     params = {
-        "maxError":-Infinity,
+        "maxError":-np.inf,
         "regionsToCombine": None,
         "mergedRegion": None,
         "i": None
     }
     for i, adjacent in enumerate(adjacentRegions):
-        region_A = regions[adjacent[0]]
-        region_B = regions[adjacent[1]]
+        region_A = FindRegion(regions,adjacent[0])
+        region_B = FindRegion(regions,adjacent[1])
         mergedRegion = GetProxy([Proxy(generateId(), region_A.faceIndexes + region_B.faceIndexes)])[0]
         proxyNormal = mergedRegion.proxyNormal
         params = {
@@ -357,7 +357,7 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces):
             "mergedRegion": mergedRegion,
             "i": i
         }
-        calculateNewElementsOfQueue([], _, mergedRegion.faceIndexes, proxyNormal, areaFaces, faceNormals, True, params)
+        calculateNewElementsOfQueue([], 0, mergedRegion.faceIndexes, proxyNormal, areaFaces, faceNormals, True, params)
     return params["regionsToCombine"]
 
 def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices, color = None ):
@@ -368,7 +368,7 @@ def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices, color = None ):
     mapa = dict(list(zip(verticesOfRegion, list(range(len(verticesOfRegion))))))
     subVertices = list(mapa.keys())
     newFaceIndexes = []
-    for item in t:
+    for item in verticesOfRegionByFace:
         newFaceIndexes.append([mapa[i] for i in item])
     newVertices = {}
     for k, v in mapa.items():
@@ -376,7 +376,7 @@ def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices, color = None ):
     newVertices = list(newVertices.values())
     newMesh = Mesh(newVertices, newFaceIndexes)
     newId = generateId()
-    ps.register_surface_mesh(newId, newVertices, newFaceIndexes, color=color)
+    ps.register_surface_mesh(str(newId), np.array(newVertices), newFaceIndexes, color=color)
     return newId, mapa, newMesh
 
 def generateId():
@@ -389,7 +389,6 @@ def Randomcolor():
 
 def main():
     ps.init()
-
     # # pyramide
     # verts=np.array([[1.,0.,0.],[0.,1.,0.],[-1.,0.,0.],[0.,-1.,0.],[0.,0.,1.]])
     # faces=[[0,1,2,3],[1,0,4],[2,1,4],[3,2,4],[0,3,4]]
