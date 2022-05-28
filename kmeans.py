@@ -6,40 +6,44 @@ import time
 import itertools
 
 import sys
+
 ID_MESH_LAST = 0
+
 
 def calculateAreaOfTriangularFace(vect1, vect2):
     return np.linalg.norm(
-                np.array(
-                    [
-                        vect1[1]*vect2[2]-vect1[2]*vect2[1],
-                        vect1[2]*vect2[0]-vect1[0]*vect2[2],
-                        vect1[0]*vect2[1]-vect1[1]*vect2[0]
-                        ]
-                    )
-                ) * .5
+        np.array(
+            [
+                vect1[1] * vect2[2] - vect1[2] * vect2[1],
+                vect1[2] * vect2[0] - vect1[0] * vect2[2],
+                vect1[0] * vect2[1] - vect1[1] * vect2[0]
+            ]
+        )
+    ) * .5
+
 
 def findEdgeInCorr(edge, corres):
     for i in range(len(corres)):
-        if edge[0] == corres[i][0] and edge[1] == corres[i][1] and edge[2] == corres[i][2]:
+        if edge[0] == corres[i][1][0] and edge[1] == corres[i][1][1] and edge[2] == corres[i][1][2]:
             return i
     return len(corres)
+
 
 class Mesh:
     def __init__(self, vertices, faces):
         self.vertices = vertices
         self.faces = faces
-    
+
     def getMeshAreaCentroid(self):
         meshVolume = 0
-        temp = [0,0,0]
+        temp = [0, 0, 0]
 
         for face in self.faces:
             v1 = self.vertices[face[0]]
             v2 = self.vertices[face[1]]
             v3 = self.vertices[face[2]]
             center = (v1 + v2 + v3) / 3
-            area = calculateAreaOfTriangularFace(v2-v1, v3-v1)
+            area = calculateAreaOfTriangularFace(v2 - v1, v3 - v1)
             meshVolume += area
             temp = center * area
 
@@ -50,8 +54,8 @@ class Mesh:
         for face in self.faces:
             areas.append(
                 calculateAreaOfTriangularFace(
-                    self.vertices[face[1]]-self.vertices[face[0]],
-                    self.vertices[face[2]]-self.vertices[face[0]]
+                    self.vertices[face[1]] - self.vertices[face[0]],
+                    self.vertices[face[2]] - self.vertices[face[0]]
                 )
             )
         return areas
@@ -59,8 +63,8 @@ class Mesh:
     def getAllFacesNormals(self):
         normals = []
         for face in self.faces:
-            U = self.vertices[face[1]]-self.vertices[face[0]]
-            V = self.vertices[face[2]]-self.vertices[face[0]]
+            U = self.vertices[face[1]] - self.vertices[face[0]]
+            V = self.vertices[face[2]] - self.vertices[face[0]]
             normals.append(
                 (
                     U[1] * V[2] - U[2] * V[1],
@@ -77,35 +81,78 @@ class Mesh:
         for i in range(len(self.faces)):
             ajdF.append(set())
         for i in range(len(self.faces)):
-            for j in range(i+1, len(self.faces)):
-                if len([k for k in [0,1,2] if self.faces[i][k] in self.faces[j]]) > 1:
+            for j in range(i + 1, len(self.faces)):
+                if len([k for k in [0, 1, 2] if self.faces[i][k] in self.faces[j]]) > 1:
                     ajdF[i].add(j)
                     ajdF[j].add(i)
         return ajdF
 
     def getAllFaceEdges(self):
+        print(len(self.faces))
         faceEdges = []
         correspondance = []
+        toCheck = []
+        # théorie : faire calcul x**3 + y**5 + z**7, on va obtenir une coordonée unique
         for face in self.faces:
-            p1 = findEdgeInCorr(self.vertices[face[0]]-self.vertices[face[1]], correspondance)
-            if p1 == len(correspondance):
-                correspondance.append(self.vertices[face[0]]-self.vertices[face[1]])
-            p2 = findEdgeInCorr(self.vertices[face[0]] - self.vertices[face[2]], correspondance)
-            if p2 == len(correspondance):
-                correspondance.append(self.vertices[face[0]] - self.vertices[face[2]])
-            p3 = findEdgeInCorr(self.vertices[face[2]] - self.vertices[face[1]], correspondance)
-            if p3 == len(correspondance):
-                correspondance.append(self.vertices[face[2]] - self.vertices[face[1]])
+            edges = calcEdges(self.vertices, face)
+            faceE = []
+            for i in range(3):
+                p = calcUniqueCoordinate(edges[i])
+                if p not in toCheck:
+                    correspondance.append(p)
+                    toCheck.append(p)
+                else:
+                    toCheck.remove(p)
+                faceE.append(correspondance.index(p))
+            faceEdges.append(faceE)
+            if len(correspondance)%1000 == 0:
+                print(len(correspondance), len(faceEdges))
 
-            faceEdges.append([p1,p2,p3])
         return faceEdges
 
+def calcUniqueCoordinate(edge):
+    return edge[0]**3 + edge[1]**5 + edge[2]**7
+
+def ordonne(vectice1, vectice2):
+    if vectice1[0] != vectice2[0]:
+        return vectice1[0] > vectice2[0]
+    if vectice1[1] != vectice2[1]:
+        return vectice1[1] > vectice2[1]
+    return vectice1[2] > vectice2[2]
+
+def calcEdges(vertices, face):
+    edges = []
+    for i in range(3):
+        if ordonne(vertices[face[i]], vertices[face[i-1]]):
+            edges.append(vertices[face[i]] - vertices[face[i-1]])
+        else:
+            edges.append(vertices[face[i-1]] - vertices[face[i]])
+    return edges
+
 class Proxy:
-    def __init__(self, regionIndex, faceIndexes, proxyNormal=None, polyMesh=None):
+    def __init__(self, regionIndex, faceIndexes, proxyNormal=None, vertices=None, faces=None):
         self.regionIndex = regionIndex
         self.faceIndexes = faceIndexes
         self.proxyNormal = proxyNormal
-        self.polyMesh = polyMesh
+        self.polyMesh = None
+        self.vertices = vertices
+        self.faces = faces
+
+    def draw(self, color):
+        if self.polyMesh:
+            self.undraw()
+        self.polyMesh = generateId()
+        ps.register_surface_mesh(self.polyMesh, self.vertices, self.faces, color=color)
+
+    def undraw(self):
+        try:
+            if self.polyMesh:
+                ps.remove_surface_mesh(self.polyMesh)
+            else:
+                raise TypeError
+        except TypeError:
+            print("Erreur de délétion de la mesh polyscope", self.regionIndex, ":", self.polyMesh)
+
 
 class QueueElement:
     def __init__(self, error, regionIndex, index):
@@ -113,56 +160,55 @@ class QueueElement:
         self.regionIndex = regionIndex
         self.index = index
 
+
 def KMeans(n, proxys, faceNormals, vertices, faceVertexIndexes, areaFaces, faceEdges, adjacentToFaces):
-    colors = []
-    for i in range(len(proxys)):
-        color = Randomcolor()
-        colors.append(color)
-    clustersMap = []
-    for i in range(0, n):
+    for i in range(n):
         proxys = GetProxy(proxys)
         regions = GetProxySeed(proxys, faceNormals, areaFaces) if i > 0 else proxys
-        queue, assignedIndexes = BuildQueue(regions,faceNormals,areaFaces,adjacentToFaces)
-        regions, worst = AssignToRegion(faceNormals,areaFaces,adjacentToFaces,regions,queue,assignedIndexes)
-        splitRegions = SplitRegion(faceNormals,areaFaces,adjacentToFaces,regions,worst)
-        InsertRegions(regions,splitRegions)
+        queue, assignedIndexes = BuildQueue(regions, faceNormals, areaFaces, adjacentToFaces)
+        regions, worst = AssignToRegion(faceNormals, areaFaces, adjacentToFaces, regions, queue, assignedIndexes)
+        regions = SplitRegion(faceNormals, areaFaces, adjacentToFaces, regions, worst)
         adjacentRegions = FindAdjacentRegions(faceEdges, regions)
-        regionsToCombine = FindRegionsToCombine(regions,adjacentRegions,faceNormals,areaFaces)
-        regions = InsertRegions(regions, [regionsToCombine])
+        regions = FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces)
         newProxys = []
-        clustersMap = []
         for region in regions:
-            try:
-                ps.remove_surface_mesh(region.polyMesh)
-            except TypeError:
-                pass
             newProxyIndexes = region.faceIndexes
-            newPolyMeshName, vertexMap, newProxyMesh = GrowSeeds(region.faceIndexes,
-                                                faceVertexIndexes,
-                                                vertices)#,
-                                                # colors[region.regionIndex])
-            newProxys.append(Proxy(region.regionIndex,
-                              newProxyIndexes,
-                              newProxyMesh,
-                              polyMesh=newPolyMeshName))
-            clustersMap.append(vertexMap)
+            verticesProxy, facesProxy = GrowSeeds(region.faceIndexes,
+                                                  faceVertexIndexes,
+                                                  vertices)
+            newProxys.append(Proxy(region.regionIndex, newProxyIndexes, vertices=verticesProxy, faces=facesProxy))
+        RefreshAllProxys(proxys, newProxys)
         proxys = newProxys
-    return proxys, clustersMap
+    return proxys
+
+
+def RefreshAllProxys(oldProxys, newProxys):
+    for proxy in oldProxys:
+        proxy.undraw()
+    for proxy in newProxys:
+        proxy.draw(Randomcolor())
+
 
 def FindRegion(regions, index):
     return [region for region in regions if region.regionIndex == index][0]
 
-def RemoveRegion(regions, index):
-    return [region for region in regions if region.regionIndex != index]
 
-def calculateNewElementsOfQueue(queue, regionIndex, faces, proxyNormal, areaFaces, faceNormals, isInFindRegionToCombine=False, paramsFindRegionToCombine=None):
+def RemoveRegion(regions, regionIndex):
+    region = FindRegion(regions, regionIndex)
+    newRegions = [reg for reg in regions if reg.regionIndex != regionIndex]
+    del region
+    return newRegions
+
+
+def calculateNewElementsOfQueue(queue, regionIndex, faces, proxyNormal, areaFaces, faceNormals,
+                                isInFindRegionToCombine=False, paramsFindRegionToCombine=None):
     for index in faces:
         area = areaFaces[index]
         normal = faceNormals[index]
         try:
             normalError = normal - proxyNormal
         except TypeError:
-            proxyNormal = np.array([0,0,0])
+            proxyNormal = np.array([0, 0, 0])
             normalError = normal - proxyNormal
         moduleNormalError = (np.linalg.norm(normalError)) ** 2
         error = moduleNormalError * area
@@ -177,21 +223,25 @@ def calculateNewElementsOfQueue(queue, regionIndex, faces, proxyNormal, areaFace
             queue.append(QueueElement(error, regionIndex, index))
     return paramsFindRegionToCombine if isInFindRegionToCombine else queue
 
+
 def InsertRegions(regions, insertRegions):
     regions.extend(insertRegions)
     return regions
+
 
 def GetProxy(proxys):
     for proxy in proxys:
         proxy.proxyNormal = GetProxyNormal(proxy.faceIndexes)
     return proxys
 
+
 def GetProxyNormal(indexes):
-    proxyNormal = np.array([0,0,0])
+    proxyNormal = np.array([0, 0, 0])
     for index in indexes:
         proxyNormal = np.add(proxyNormal, 1)
     proxyNormal = proxyNormal / np.linalg.norm(proxyNormal)
     return proxyNormal
+
 
 def GetProxySeed(proxys, faceNormals, areaFaces):
     regions = []
@@ -208,13 +258,15 @@ def GetProxySeed(proxys, faceNormals, areaFaces):
         errors.sort(key=lambda x: x.error)
         seedFaceIndex = errors.pop().index
         region = Proxy(proxy.regionIndex,
-                  [seedFaceIndex],
-                  proxyNormal=proxy.proxyNormal)
+                       [seedFaceIndex],
+                       proxyNormal=proxy.proxyNormal)
         regions.append(region)
     return regions
 
+
 def MetricError(regionIndex, faceIndexes, faceNormals, areaFaces, proxyNormal):
     return calculateNewElementsOfQueue([], regionIndex, faceIndexes, proxyNormal, areaFaces, faceNormals)
+
 
 def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
     regionIndex = region.regionIndex
@@ -228,26 +280,25 @@ def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
     queue.sort(key=lambda x: x.error)
     return queue
 
+
 def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
-    regionIndex = region.regionIndex
-    proxyNormal = region.proxyNormal
-    calculateNewElementsOfQueue(queue, regionIndex, newFaces, proxyNormal, areaFaces, faceNormals)
-    return queue
+    return calculateNewElementsOfQueue(queue, region.regionIndex, newFaces, region.proxyNormal, areaFaces, faceNormals)
+
 
 def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
     globalQueue = []
     assignedIndexes = set(assignedIndexes)
     while queue:
         mostPriority = queue.pop()
-        faceIndex =  mostPriority.index
+        faceIndex = mostPriority.index
         if faceIndex not in assignedIndexes:
             globalQueue.append(mostPriority)
-            regionIndex = mostPriority.regionIndex
-            regions[regionIndex].faceIndexes.append(faceIndex)
+            region = FindRegion(regions, mostPriority.regionIndex)
+            region.faceIndexes.append(faceIndex)
             assignedIndexes.add(faceIndex)
             newAdjacentFaces = set(adjacentFaces[faceIndex])
             newAdjacentFaces -= assignedIndexes
-            queue = UpdateQueueNew(FindRegion(regions, regionIndex).regionIndex,
+            queue = UpdateQueueNew(region,
                                    faceNormals,
                                    areaFaces,
                                    queue,
@@ -258,9 +309,10 @@ def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assign
         worst = globalQueue.pop()
     except IndexError:
         # Si tous les éléments sont assignés, pas de globalQueue remplie
-        worst = QueueElement(0.0,regions[0].regionIndex,regions[0].faceIndexes[0])
+        worst = QueueElement(0.0, regions[0].regionIndex, regions[0].faceIndexes[0])
 
     return regions, worst
+
 
 def AssignToWorstRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes, oldRegionFaces):
     regionDomain = frozenset(oldRegionFaces)
@@ -287,6 +339,7 @@ def AssignToWorstRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, a
 
     return regions
 
+
 def BuildQueue(regions, faceNormals, areaFaces, adjacentToFaces):
     assignedIndexes = []
     queue = []
@@ -300,15 +353,16 @@ def BuildQueue(regions, faceNormals, areaFaces, adjacentToFaces):
                             adjacentToFaces[seedIndex])
     return queue, assignedIndexes
 
+
 def SplitRegion(faceNormals, areaFaces, adjacentFaces, regions, worst):
-    worstRegion = FindRegion(regions,worst.regionIndex)
+    worstRegion = FindRegion(regions, worst.regionIndex)
     splitRegion_A = generateId()
     spiltRegion_B = generateId()
 
     oldRegionFaces = worstRegion.faceIndexes
     seedIndex_A = oldRegionFaces[0]
     seedIndex_B = worst.index
-    splitRegions = GetProxy([Proxy(splitRegion_A, [seedIndex_A]),Proxy(spiltRegion_B, [seedIndex_B])])
+    splitRegions = GetProxy([Proxy(splitRegion_A, [seedIndex_A]), Proxy(spiltRegion_B, [seedIndex_B])])
 
     queue, assignedIndexes = BuildQueue(splitRegions,
                                         faceNormals,
@@ -322,7 +376,8 @@ def SplitRegion(faceNormals, areaFaces, adjacentFaces, regions, worst):
                                        queue,
                                        assignedIndexes,
                                        oldRegionFaces)
-    return splitRegions
+    return InsertRegions(RemoveRegion(regions, worstRegion.regionIndex), splitRegions)
+
 
 def FindAdjacentRegions(faceEdges, regions):
     adjacentRegions = []
@@ -339,16 +394,18 @@ def FindAdjacentRegions(faceEdges, regions):
 
     return adjacentRegions
 
+
 def FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces):
     params = {
-        "maxError":-np.inf,
+        "maxError": -np.inf,
         "regionsToCombine": None,
         "mergedRegion": None,
         "i": None
     }
+    regionsToDelete = adjacentRegions[0]
     for i, adjacent in enumerate(adjacentRegions):
-        region_A = FindRegion(regions,adjacent[0])
-        region_B = FindRegion(regions,adjacent[1])
+        region_A = FindRegion(regions, adjacent[0])
+        region_B = FindRegion(regions, adjacent[1])
         mergedRegion = GetProxy([Proxy(generateId(), region_A.faceIndexes + region_B.faceIndexes)])[0]
         proxyNormal = mergedRegion.proxyNormal
         params = {
@@ -357,14 +414,17 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces):
             "mergedRegion": mergedRegion,
             "i": i
         }
-        calculateNewElementsOfQueue([], 0, mergedRegion.faceIndexes, proxyNormal, areaFaces, faceNormals, True, params)
-    return params["regionsToCombine"]
+        params = calculateNewElementsOfQueue([], 0, mergedRegion.faceIndexes, proxyNormal, areaFaces, faceNormals, True,
+                                             params)
+        if params["regionsToCombine"] == mergedRegion:
+            regionsToDelete = adjacent
+    return InsertRegions(RemoveRegion(RemoveRegion(regions, regionsToDelete[0]), regionsToDelete[1]),
+                         [params["regionsToCombine"]])
 
-def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices, color = None ):
-    if not color:
-        color = Randomcolor()
+
+def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices):
     verticesOfRegionByFace = [faceVertexIndexes[i] for i in subFaceIndexes]
-    verticesOfRegion =  set([i for sublist in verticesOfRegionByFace for i in sublist])
+    verticesOfRegion = set([i for sublist in verticesOfRegionByFace for i in sublist])
     mapa = dict(list(zip(verticesOfRegion, list(range(len(verticesOfRegion))))))
     subVertices = list(mapa.keys())
     newFaceIndexes = []
@@ -374,18 +434,31 @@ def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices, color = None ):
     for k, v in mapa.items():
         newVertices[v] = vertices[k]
     newVertices = list(newVertices.values())
-    newMesh = Mesh(newVertices, newFaceIndexes)
-    newId = generateId()
-    ps.register_surface_mesh(str(newId), np.array(newVertices), newFaceIndexes, color=color)
-    return newId, mapa, newMesh
+    return np.array(newVertices), newFaceIndexes
+
 
 def generateId():
     global ID_MESH_LAST
     ID_MESH_LAST += 1
-    return ID_MESH_LAST
+    return str(ID_MESH_LAST)
+
 
 def Randomcolor():
     return random.randint(0, 255) / 255, random.randint(0, 255) / 255, random.randint(0, 255) / 255
+
+
+def generateNRegions(mesh, nb, adjacency):
+    listFaces = mesh.faces[:]
+    regions = []
+    faceDrawn = []
+    for i in range(nb):
+        face = random.randrange(len(listFaces))
+        while face in faceDrawn:
+            face = random.randrange(len(listFaces))
+        regions.append(Proxy(generateId(), [face]))
+        faceDrawn.append(face)
+    return regions
+
 
 def main():
     ps.init()
@@ -395,29 +468,43 @@ def main():
     # mesh = Mesh(verts, faces)
 
     # # dé à 8 faces
-    verts=np.array([[1.,0.,0.],[-1.,0.,0.],[0.,1.,0.],[0.,-1.,0.],[0.,0.,1.],[0.,0.,-1.]])
-    faces=[[0,2,4],[0,2,5],[0,3,4],[0,3,5],[1,2,4],[1,2,5],[1,3,4],[1,3,5]]
-    mesh = Mesh(verts, faces)
+    # verts = np.array([[1., 0., 0.], [-1., 0., 0.], [0., 1., 0.], [0., -1., 0.], [0., 0., 1.], [0., 0., -1.]])
+    # faces = [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
+    # mesh = Mesh(verts, faces)
 
     # casque (attention lourd)
-    # obj = load_obj( 'helmet.obj')
-    # ps_mesh = ps.register_surface_mesh("helmet", obj.only_coordinates(), obj.only_faces() )
-    # mesh = Mesh(obj.only_coordinates(), obj.only_faces())
+    st = time.time()
+    obj = load_obj('helmet.obj')
+    ps_mesh = ps.register_surface_mesh("helmet", obj.only_coordinates(), obj.only_faces())
+    mesh = Mesh(obj.only_coordinates(), obj.only_faces())
+    print("loading : ", time.time() - st)
+    st = time.time()
+    normals = mesh.getAllFacesNormals()
+    print("normals : ", time.time() - st)
+    st = time.time()
+    areas = mesh.getAllFacesArea()
+    print("areas : ", time.time() - st)
+    st = time.time()
+    edges = mesh.getAllFaceEdges()
+    print("edges : ", time.time() - st)
+    st = time.time()
+    adjacency = mesh.getAllAdjacentFaces()
+    print("adjacency : ", time.time() - st)
     KMeans(
-        10,
-        [Proxy(generateId(),[i]) for i in range(len(mesh.faces))],
-        mesh.getAllFacesNormals(),
+        3,
+        generateNRegions(mesh, 3, adjacency),
+        normals,
         mesh.vertices,
         mesh.faces,
-        mesh.getAllFacesArea(),
-        mesh.getAllFaceEdges(),
-        mesh.getAllAdjacentFaces()
+        areas,
+        edges,
+        adjacency
     )
     ps.show()
 
     # print(mesh.getAllFacesArea())
     # print(mesh.getAllFacesNormals())
-    # print(mesh.getAllAdjacentFaces())
+    # print(adjacency)
     # print(mesh.getAllFaceEdges())
 
 
