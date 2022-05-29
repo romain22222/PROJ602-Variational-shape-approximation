@@ -24,10 +24,9 @@ def calculateAreaOfTriangularFace(vect1, vect2):
 
 def findEdgeInCorr(edge, corres):
     for i in range(len(corres)):
-        if edge[0] == corres[i][1][0] and edge[1] == corres[i][1][1] and edge[2] == corres[i][1][2]:
+        if edge[0] == corres[i][0] and edge[1] == corres[i][1] and edge[2] == corres[i][2]:
             return i
     return len(corres)
-
 
 class Mesh:
     def __init__(self, vertices, faces):
@@ -86,44 +85,19 @@ class Mesh:
     def getAllFaceEdges(self):
         faceEdges = []
         correspondance = []
-        toCheck = []
-        # théorie : faire calcul x**3 + y**5 + z**7, on va obtenir une coordonée unique
         for face in self.faces:
-            edges = calcEdges(self.vertices, face)
-            faceE = []
-            for i in range(3):
-                p = calcUniqueCoordinate(edges[i])
-                if p not in toCheck:
-                    correspondance.append(p)
-                    toCheck.append(p)
-                else:
-                    toCheck.remove(p)
-                faceE.append(correspondance.index(p))
-            faceEdges.append(faceE)
+            p1 = findEdgeInCorr(self.vertices[face[0]] - self.vertices[face[1]], correspondance)
+            if p1 == len(correspondance):
+                correspondance.append(self.vertices[face[0]] - self.vertices[face[1]])
+            p2 = findEdgeInCorr(self.vertices[face[0]] - self.vertices[face[2]], correspondance)
+            if p2 == len(correspondance):
+                correspondance.append(self.vertices[face[0]] - self.vertices[face[2]])
+            p3 = findEdgeInCorr(self.vertices[face[2]] - self.vertices[face[1]], correspondance)
+            if p3 == len(correspondance):
+                correspondance.append(self.vertices[face[2]] - self.vertices[face[1]])
 
+            faceEdges.append([p1, p2, p3])
         return faceEdges
-
-
-def calcUniqueCoordinate(edge):
-    return edge[0] ** 3 + edge[1] ** 5 + edge[2] ** 7
-
-
-def ordonne(vectice1, vectice2):
-    if vectice1[0] != vectice2[0]:
-        return vectice1[0] > vectice2[0]
-    if vectice1[1] != vectice2[1]:
-        return vectice1[1] > vectice2[1]
-    return vectice1[2] > vectice2[2]
-
-
-def calcEdges(vertices, face):
-    edges = []
-    for i in range(3):
-        if ordonne(vertices[face[i]], vertices[face[i - 1]]):
-            edges.append(vertices[face[i]] - vertices[face[i - 1]])
-        else:
-            edges.append(vertices[face[i - 1]] - vertices[face[i]])
-    return edges
 
 
 class Proxy:
@@ -292,7 +266,7 @@ def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assign
             region = FindRegion(regions, mostPriority.regionIndex)
             region.faceIndexes.append(faceIndex)
             assignedIndexes.add(faceIndex)
-            newAdjacentFaces = set(adjacentFaces[faceIndex])
+            newAdjacentFaces = adjacentFaces[faceIndex]
             newAdjacentFaces -= assignedIndexes
             queue = UpdateQueueNew(region,
                                    faceNormals,
@@ -305,7 +279,9 @@ def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assign
         worst = globalQueue.pop()
     except IndexError:
         # Si tous les éléments sont assignés, pas de globalQueue remplie
-        worst = QueueElement(0.0, regions[0].regionIndex, regions[0].faceIndexes[0])
+        randomReg = random.randrange(len(regions))
+        randomRegFace = random.randrange(len(regions[randomReg]))
+        worst = QueueElement(0.0, regions[randomReg].regionIndex, regions[randomReg].faceIndexes[randomRegFace])
 
     return regions, worst
 
@@ -323,7 +299,7 @@ def AssignToWorstRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, a
                 if regionIndex == region.regionIndex:
                     region.faceIndexes.append(faceIndex)
                     assignedIndexes.add(faceIndex)
-                    s = set(adjacentFaces[faceIndex])
+                    s = adjacentFaces[faceIndex]
                     s &= regionDomain
                     s -= assignedIndexes
                     if s:
@@ -506,7 +482,6 @@ def main():
         obj = load_obj(nomObj, triangulate=True)
         vertsGlobal = obj.only_coordinates()
         facesGlobal = obj.only_faces()
-    print(facesGlobal)
     ps.register_surface_mesh("MAIN", vertsGlobal, facesGlobal, color=(0., 1., 0.), edge_color=(0., 0., 0.),
                              edge_width=3)
     meshGlobal = Mesh(vertsGlobal, facesGlobal)
@@ -523,16 +498,17 @@ def main():
     edgesGlobal = meshGlobal.getAllFaceEdges()
     print("edges : ", time.time() - st)
     nbProxys = int(input("Combien de régions ?"))
-    proxysGlobal = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
-
     ps.init()
+    proxysGlobal = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
+    newP = []
+    for p in proxysGlobal:
+        verticesProxy, facesProxy = GrowSeeds(p.faceIndexes, meshGlobal.faces,meshGlobal.vertices)
+        newP.append(Proxy(p.regionIndex, p.faceIndexes, vertices=verticesProxy, faces=facesProxy))
+    proxysGlobal = newP
+    for p in proxysGlobal:
+        p.draw(Randomcolor())
     ps.set_user_callback(corpse)
     ps.show()
-
-    # print(mesh.getAllFacesArea())
-    # print(mesh.getAllFacesNormals())
-    # print(adjacency)
-    # print(mesh.getAllFaceEdges())
 
 
 if __name__ == '__main__':
