@@ -256,10 +256,10 @@ def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
 
 def findAndPopMP(queue):
     index = 0
-    maxE = -1
+    minE = np.inf
     for i in range(len(queue)):
-        if queue[i].error > maxE:
-            maxE=queue[i].error
+        if queue[i].error < minE:
+            minE=queue[i].error
             index = i
     return queue, queue.pop(index)
 
@@ -473,6 +473,32 @@ def corpse():
         RefreshAllProxys(proxysGlobal, newProxys, meshGlobal)
         proxysGlobal = newProxys
 
+    if psim.Button("Ajouter une région"):
+        # Actualise les régions (rajoute les normales)
+        proxys = GetProxy(proxysGlobal)
+        # On récupère les graines de chaque région
+        regions = GetProxySeed(proxys, normalsGlobal, areasGlobal)
+        # On construit une file contenant toutes les faces...
+        queue, assignedIndexes = BuildQueue(regions, normalsGlobal, areasGlobal, adjacencyGlobal)
+        regions, worst = AssignToRegion(normalsGlobal, areasGlobal, adjacencyGlobal, regions, queue, assignedIndexes)
+        regions = SplitRegion(normalsGlobal, areasGlobal, adjacencyGlobal, regions, worst)
+        RefreshAllProxys(proxysGlobal, regions, meshGlobal)
+        proxysGlobal = regions
+
+    psim.SameLine()
+    if psim.Button("Retirer une région"):
+        # Actualise les régions (rajoute les normales)
+        proxys = GetProxy(proxysGlobal)
+        # On récupère les graines de chaque région
+        regions = GetProxySeed(proxys, normalsGlobal, areasGlobal)
+        # On construit une file contenant toutes les faces...
+        queue, assignedIndexes = BuildQueue(regions, normalsGlobal, areasGlobal, adjacencyGlobal)
+        regions, worst = AssignToRegion(normalsGlobal, areasGlobal, adjacencyGlobal, regions, queue, assignedIndexes)
+        adjacentRegions = FindAdjacentRegions(edgesGlobal, regions)
+        regions = FindRegionsToCombine(regions, adjacentRegions, normalsGlobal, areasGlobal)
+        RefreshAllProxys(proxysGlobal, regions, meshGlobal)
+        proxysGlobal = regions
+
 
 nbExec = 1
 vertsGlobal = None
@@ -497,12 +523,11 @@ def main():
         vertsGlobal = np.array([[1., 0., 0.], [-1., 0., 0.], [0., 1., 0.], [0., -1., 0.], [0., 0., 1.], [0., 0., -1.]])
         facesGlobal = [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
     else:
-        nomObj = input("Entrez le nom du .obj (disponible normalement : 'helmet.obj', 'table.obj'\n")
+        nomObj = input("Entrez le nom du .obj (disponible normalement : 'arm.obj', 'bubble.obj'\n")
         obj = load_obj(nomObj, triangulate=True)
         vertsGlobal = obj.only_coordinates()
         facesGlobal = obj.only_faces()
-    ps.register_surface_mesh("MAIN", vertsGlobal, facesGlobal, color=(0., 1., 0.), edge_color=(0., 0., 0.),
-                             edge_width=3)
+
     meshGlobal = Mesh(vertsGlobal, facesGlobal)
     st = time.time()
     normalsGlobal = meshGlobal.getAllFacesNormals()
@@ -517,10 +542,12 @@ def main():
     edgesGlobal = meshGlobal.getAllFaceEdges()
     print("edges : ", time.time() - st)
     nbProxys = int(input("Combien de régions ?"))
-    ps.init()
     proxysGlobal = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
     RefreshAllProxys([], proxysGlobal, meshGlobal)
+    ps.init()
     ps.set_user_callback(corpse)
+    ps.register_surface_mesh("MAIN", vertsGlobal, facesGlobal, color=(0., 1., 0.), edge_color=(0., 0., 0.),
+                             edge_width=3)
     ps.show()
 
 
