@@ -4,11 +4,10 @@ from wavefront import *
 import random
 import time
 import itertools
-
 import sys
+import polyscope.imgui as psim
 
 ID_MESH_LAST = 0
-
 
 def calculateAreaOfTriangularFace(vect1, vect2):
     return np.linalg.norm(
@@ -88,7 +87,6 @@ class Mesh:
         return ajdF
 
     def getAllFaceEdges(self):
-        print(len(self.faces))
         faceEdges = []
         correspondance = []
         toCheck = []
@@ -105,13 +103,13 @@ class Mesh:
                     toCheck.remove(p)
                 faceE.append(correspondance.index(p))
             faceEdges.append(faceE)
-            if len(correspondance)%1000 == 0:
-                print(len(correspondance), len(faceEdges))
 
         return faceEdges
 
+
 def calcUniqueCoordinate(edge):
-    return edge[0]**3 + edge[1]**5 + edge[2]**7
+    return edge[0] ** 3 + edge[1] ** 5 + edge[2] ** 7
+
 
 def ordonne(vectice1, vectice2):
     if vectice1[0] != vectice2[0]:
@@ -120,14 +118,16 @@ def ordonne(vectice1, vectice2):
         return vectice1[1] > vectice2[1]
     return vectice1[2] > vectice2[2]
 
+
 def calcEdges(vertices, face):
     edges = []
     for i in range(3):
-        if ordonne(vertices[face[i]], vertices[face[i-1]]):
-            edges.append(vertices[face[i]] - vertices[face[i-1]])
+        if ordonne(vertices[face[i]], vertices[face[i - 1]]):
+            edges.append(vertices[face[i]] - vertices[face[i - 1]])
         else:
-            edges.append(vertices[face[i-1]] - vertices[face[i]])
+            edges.append(vertices[face[i - 1]] - vertices[face[i]])
     return edges
+
 
 class Proxy:
     def __init__(self, regionIndex, faceIndexes, proxyNormal=None, vertices=None, faces=None):
@@ -151,7 +151,7 @@ class Proxy:
             else:
                 raise TypeError
         except TypeError:
-            print("Erreur de délétion de la mesh polyscope", self.regionIndex, ":", self.polyMesh)
+            pass
 
 
 class QueueElement:
@@ -177,7 +177,6 @@ def KMeans(n, proxys, faceNormals, vertices, faceVertexIndexes, areaFaces, faceE
                                                   faceVertexIndexes,
                                                   vertices)
             newProxys.append(Proxy(region.regionIndex, newProxyIndexes, vertices=verticesProxy, faces=facesProxy))
-        RefreshAllProxys(proxys, newProxys)
         proxys = newProxys
     return proxys
 
@@ -459,47 +458,72 @@ def generateNRegions(mesh, nb, adjacency):
         faceDrawn.append(face)
     return regions
 
+def corpse():
+    global nbExec,vertsGlobal,facesGlobal,proxysGlobal,normalsGlobal,meshGlobal,areasGlobal,edgesGlobal,adjacencyGlobal
+    psim.PushItemWidth(150)
+    psim.TextUnformatted("Exécuter l'algorithme")
+    psim.Separator()
 
+    changed, nbExec = psim.InputInt("Nombre d'exécution de l'algo", nbExec, step=1, step_fast=3)
+    psim.SameLine()
+    if psim.Button("Exécuter"):
+        newProxys = KMeans(
+            nbExec,
+            proxysGlobal,
+            normalsGlobal,
+            meshGlobal.vertices,
+            meshGlobal.faces,
+            areasGlobal,
+            edgesGlobal,
+            adjacencyGlobal
+        )
+        RefreshAllProxys(proxysGlobal, newProxys)
+        proxysGlobal = newProxys
+
+nbExec = 1
+vertsGlobal = None
+facesGlobal = None
+proxysGlobal = None
+normalsGlobal = None
+meshGlobal = None
+areasGlobal = None
+edgesGlobal = None
+adjacencyGlobal = None
 def main():
-    ps.init()
-    # # pyramide
-    # verts=np.array([[1.,0.,0.],[0.,1.,0.],[-1.,0.,0.],[0.,-1.,0.],[0.,0.,1.]])
-    # faces=[[0,1,2,3],[1,0,4],[2,1,4],[3,2,4],[0,3,4]]
-    # mesh = Mesh(verts, faces)
-
-    # # dé à 8 faces
-    # verts = np.array([[1., 0., 0.], [-1., 0., 0.], [0., 1., 0.], [0., -1., 0.], [0., 0., 1.], [0., 0., -1.]])
-    # faces = [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
-    # mesh = Mesh(verts, faces)
-
-    # casque (attention lourd)
+    global vertsGlobal,facesGlobal,proxysGlobal,normalsGlobal,meshGlobal,areasGlobal,edgesGlobal,adjacencyGlobal
+    choixFig = int(input("1 - Pyramide\n2 - Dé à 8 faces\n3 - Via un fichier obj\n"))
+    if choixFig == 1:
+        # pyramide
+        vertsGlobal = np.array([[1., 0., 0.], [0., 1., 0.], [-1., 0., 0.], [0., -1., 0.], [0., 0., 1.]])
+        facesGlobal = [[0, 1, 2, 3], [1, 0, 4], [2, 1, 4], [3, 2, 4], [0, 3, 4]]
+    elif choixFig == 2:
+        # dé à 8 faces
+        vertsGlobal = np.array([[1., 0., 0.], [-1., 0., 0.], [0., 1., 0.], [0., -1., 0.], [0., 0., 1.], [0., 0., -1.]])
+        facesGlobal = [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
+    else:
+        nomObj = input("Entrez le nom du .obj (disponible normalement : 'helmet.obj'")
+        obj = load_obj(nomObj)
+        vertsGlobal = obj.only_coordinates()
+        facesGlobal = obj.only_faces()
+    ps.register_surface_mesh("MAIN", vertsGlobal, facesGlobal, color=(0., 1., 0.), edge_color=(0., 0., 0.), edge_width=3)
+    meshGlobal = Mesh(vertsGlobal, facesGlobal)
     st = time.time()
-    obj = load_obj('helmet.obj')
-    ps_mesh = ps.register_surface_mesh("helmet", obj.only_coordinates(), obj.only_faces())
-    mesh = Mesh(obj.only_coordinates(), obj.only_faces())
-    print("loading : ", time.time() - st)
-    st = time.time()
-    normals = mesh.getAllFacesNormals()
+    normalsGlobal = meshGlobal.getAllFacesNormals()
     print("normals : ", time.time() - st)
     st = time.time()
-    areas = mesh.getAllFacesArea()
+    areasGlobal = meshGlobal.getAllFacesArea()
     print("areas : ", time.time() - st)
     st = time.time()
-    edges = mesh.getAllFaceEdges()
+    edgesGlobal = meshGlobal.getAllFaceEdges()
     print("edges : ", time.time() - st)
     st = time.time()
-    adjacency = mesh.getAllAdjacentFaces()
+    adjacencyGlobal = meshGlobal.getAllAdjacentFaces()
     print("adjacency : ", time.time() - st)
-    KMeans(
-        3,
-        generateNRegions(mesh, 3, adjacency),
-        normals,
-        mesh.vertices,
-        mesh.faces,
-        areas,
-        edges,
-        adjacency
-    )
+    nbProxys = int(input("Combien de régions ?"))
+    proxysGlobal = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
+
+    ps.init()
+    ps.set_user_callback(corpse)
     ps.show()
 
     # print(mesh.getAllFacesArea())
