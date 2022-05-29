@@ -7,6 +7,7 @@ import itertools
 import sys
 import polyscope.imgui as psim
 
+
 def calculateAreaOfTriangularFace(vect1, vect2):
     return np.linalg.norm(
         np.array(
@@ -24,6 +25,7 @@ def findEdgeInCorr(edge, corres):
         if edge[0] == corres[i][0] and edge[1] == corres[i][1] and edge[2] == corres[i][2]:
             return i
     return len(corres)
+
 
 class Mesh:
     def __init__(self, vertices, faces):
@@ -96,6 +98,7 @@ class Mesh:
             faceEdges.append([p1, p2, p3])
         return faceEdges
 
+
 class Proxy:
     def __init__(self, regionIndex, faceIndexes, proxyNormal=None):
         self.regionIndex = regionIndex
@@ -120,7 +123,9 @@ class Proxy:
             pass
 
     def __str__(self):
-        return self.regionIndex + " : " + str(self.faceIndexes) + " - " + str(self.proxyNormal) + " - " + str(self.polyMesh)
+        return self.regionIndex + " : " + str(self.faceIndexes) + " - " + str(self.proxyNormal) + " - " + str(
+            self.polyMesh)
+
 
 class QueueElement:
     def __init__(self, error, regionIndex, index):
@@ -129,7 +134,8 @@ class QueueElement:
         self.index = index
 
     def __str__(self):
-        return "Face " + str(self.index) + " of region "+ str(self.regionIndex) + " : " + str(self.error)
+        return "Face " + str(self.index) + " of region " + str(self.regionIndex) + " : " + str(self.error)
+
 
 """
 Fonction principale
@@ -140,16 +146,23 @@ def KMeans(n, proxys, faceNormals, vertices, faceVertexIndexes, areaFaces, faceE
         proxys = GetProxy(proxys)
         # On récupère les graines de chaque région
         regions = GetProxySeed(proxys, faceNormals, areaFaces)
-        # On construit une file contenant toutes les faces...
+        # On construit une file contenant toutes les faces adjacentes aux graines, ainsi que la liste des graines
         queue, assignedIndexes = BuildQueue(regions, faceNormals, areaFaces, adjacentToFaces)
+        # On va ensuite distribuer les faces selon la région qui leur donne la plus petite erreur
         regions, worst = AssignToRegion(faceNormals, areaFaces, adjacentToFaces, regions, queue, assignedIndexes)
+        # On récupère la pire face de la pire région, et avec celle ci, on va séparer en deux la pire des régions
         regions = SplitRegion(faceNormals, areaFaces, adjacentToFaces, regions, worst)
+        # Après cela on récupère les régions adjacentes
         adjacentRegions = FindAdjacentRegions(faceEdges, regions)
+        # Et on fusionne les deux meilleures régions adjacentes
         regions = FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces)
         proxys = regions
     return proxys
 
 
+"""
+Redessine les régions de polyscope
+"""
 def RefreshAllProxys(oldProxys, newProxys, mesh):
     for proxy in oldProxys:
         proxy.undraw()
@@ -157,10 +170,16 @@ def RefreshAllProxys(oldProxys, newProxys, mesh):
         proxy.draw(Randomcolor(), mesh.vertices, mesh.faces)
 
 
+"""
+Trouve une région parmi la liste des régions
+"""
 def FindRegion(regions, index):
     return [region for region in regions if region.regionIndex == index][0]
 
 
+"""
+Retire une région de la liste des régions
+"""
 def RemoveRegion(regions, regionIndex):
     region = FindRegion(regions, regionIndex)
     newRegions = [reg for reg in regions if reg.regionIndex != regionIndex]
@@ -168,6 +187,12 @@ def RemoveRegion(regions, regionIndex):
     return newRegions
 
 
+"""
+Rajoute les faces données à la queue
+
+Comportement spécial : si isInFindRegionToCombine, alors :
+Cherche les deux régions à merge
+"""
 def calculateNewElementsOfQueue(queue, regionIndex, faces, proxyNormal, areaFaces, faceNormals,
                                 isInFindRegionToCombine=False, paramsFindRegionToCombine=None):
     for index in faces:
@@ -192,17 +217,32 @@ def calculateNewElementsOfQueue(queue, regionIndex, faces, proxyNormal, areaFace
     return paramsFindRegionToCombine if isInFindRegionToCombine else queue
 
 
+def MetricError(regionIndex, faceIndexes, faceNormals, areaFaces, proxyNormal):
+    return calculateNewElementsOfQueue([], regionIndex, faceIndexes, proxyNormal, areaFaces, faceNormals)
+def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
+    return calculateNewElementsOfQueue(queue, region.regionIndex, newFaces, region.proxyNormal, areaFaces, faceNormals)
+
+
+"""
+Insère les nouvelles régions dans la liste des régions
+"""
 def InsertRegions(regions, insertRegions):
     regions.extend(insertRegions)
     return regions
 
 
+"""
+Actualise les normales des régions
+"""
 def GetProxy(proxys):
     for proxy in proxys:
         proxy.proxyNormal = GetProxyNormal(proxy.faceIndexes)
     return proxys
 
 
+"""
+Calcule et renvoie la normale de la région 
+"""
 def GetProxyNormal(indexes):
     proxyNormal = np.array([0, 0, 0])
     for index in indexes:
@@ -212,6 +252,9 @@ def GetProxyNormal(indexes):
     return proxyNormal
 
 
+"""
+Calcule les nouvelles régions, et leur assigne une face graine
+"""
 def GetProxySeed(proxys, faceNormals, areaFaces):
     regions = []
     for proxy in proxys:
@@ -232,11 +275,9 @@ def GetProxySeed(proxys, faceNormals, areaFaces):
         regions.append(region)
     return regions
 
-
-def MetricError(regionIndex, faceIndexes, faceNormals, areaFaces, proxyNormal):
-    return calculateNewElementsOfQueue([], regionIndex, faceIndexes, proxyNormal, areaFaces, faceNormals)
-
-
+"""
+Rajoute à la queue les newFaces
+"""
 def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
     regionIndex = region.regionIndex
     proxyNormal = region.proxyNormal
@@ -249,20 +290,21 @@ def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
     queue.sort(key=lambda x: x.error)
     return queue
 
-
-def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
-    return calculateNewElementsOfQueue(queue, region.regionIndex, newFaces, region.proxyNormal, areaFaces, faceNormals)
-
-
+"""
+Cherche dans la queue l'élément d'erreur minimal, le supprime de la liste et le retourne
+"""
 def findAndPopMP(queue):
     index = 0
     minE = np.inf
     for i in range(len(queue)):
         if queue[i].error < minE:
-            minE=queue[i].error
+            minE = queue[i].error
             index = i
     return queue, queue.pop(index)
 
+"""
+Distribue les faces aux différentes régions en fonction de leur proximité avec celles ci
+"""
 def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
     globalQueue = []
     assignedIndexes = set(assignedIndexes)
@@ -283,7 +325,6 @@ def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assign
                                    queue,
                                    newAdjacentFaces)
 
-
     globalQueue.sort(key=lambda x: -x.error)
     try:
         worst = globalQueue.pop()
@@ -294,13 +335,15 @@ def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assign
         worst = QueueElement(0.0, regions[randomReg].regionIndex, regions[randomReg].faceIndexes[randomRegFace])
     return regions, worst
 
-
+"""
+Distribue les faces de la pire région dans deux autres régions 
+"""
 def AssignToWorstRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes, oldRegionFaces):
     regionDomain = frozenset(oldRegionFaces)
     assignedIndexes = set(assignedIndexes)
     queue = [i for i in queue if i.index in regionDomain]
     while queue:
-        mostPriority = queue.pop()
+        queue, mostPriority = findAndPopMP(queue)
         faceIndex = mostPriority.index
         if faceIndex not in assignedIndexes:
             regionIndex = mostPriority.regionIndex
@@ -406,6 +449,8 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces):
 """
 Permet de générer les meshs à dessiner pour polyscope
 """
+
+
 def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices):
     verticesOfRegionByFace = [faceVertexIndexes[i] for i in subFaceIndexes]
     verticesOfRegion = set([i for sublist in verticesOfRegionByFace for i in sublist])
@@ -420,24 +465,33 @@ def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices):
     newVertices = list(newVertices.values())
     return np.array(newVertices), newFaceIndexes
 
+
 """
 Gère les ids
 """
 ID_MESH_LAST = 0
+
+
 def generateId():
     global ID_MESH_LAST
     ID_MESH_LAST += 1
     return str(ID_MESH_LAST)
 
+
 """
 Renvoie une couleur aléatoire
 """
+
+
 def Randomcolor():
     return random.randint(0, 255) / 255, random.randint(0, 255) / 255, random.randint(0, 255) / 255
+
 
 """
 Crée un nombre nb de régions avec un face aléatoire
 """
+
+
 def generateNRegions(mesh, nb, adjacency):
     listFaces = mesh.faces[:]
     regions = []
@@ -452,7 +506,7 @@ def generateNRegions(mesh, nb, adjacency):
 
 
 def corpse():
-    global nbExec, vertsGlobal, facesGlobal, proxysGlobal, normalsGlobal, meshGlobal, areasGlobal, edgesGlobal, adjacencyGlobal
+    global nbExec, vertsGlobal, facesGlobal, proxysGlobal, normalsGlobal, meshGlobal, areasGlobal, edgesGlobal, adjacencyGlobal, nbProxys
     psim.PushItemWidth(150)
     psim.TextUnformatted("Exécuter l'algorithme")
     psim.Separator()
@@ -484,6 +538,7 @@ def corpse():
         regions = SplitRegion(normalsGlobal, areasGlobal, adjacencyGlobal, regions, worst)
         RefreshAllProxys(proxysGlobal, regions, meshGlobal)
         proxysGlobal = regions
+        nbProxys += 1
 
     psim.SameLine()
     if psim.Button("Retirer une région"):
@@ -498,7 +553,13 @@ def corpse():
         regions = FindRegionsToCombine(regions, adjacentRegions, normalsGlobal, areasGlobal)
         RefreshAllProxys(proxysGlobal, regions, meshGlobal)
         proxysGlobal = regions
+        nbProxys -= 1
 
+    psim.SameLine()
+    if psim.Button("Refaire un tirage de régions"):
+        tmp = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
+        RefreshAllProxys(proxysGlobal, tmp, meshGlobal)
+        proxysGlobal = tmp
 
 nbExec = 1
 vertsGlobal = None
@@ -509,10 +570,11 @@ meshGlobal = None
 areasGlobal = None
 edgesGlobal = None
 adjacencyGlobal = None
+nbProxys = None
 
 
 def main():
-    global vertsGlobal, facesGlobal, proxysGlobal, normalsGlobal, meshGlobal, areasGlobal, edgesGlobal, adjacencyGlobal
+    global vertsGlobal, facesGlobal, proxysGlobal, normalsGlobal, meshGlobal, areasGlobal, edgesGlobal, adjacencyGlobal, nbProxys
     choixFig = int(input("1 - Pyramide\n2 - Dé à 8 faces\n3 - Via un fichier obj\n"))
     if choixFig == 1:
         # pyramide
