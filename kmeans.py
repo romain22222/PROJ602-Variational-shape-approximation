@@ -31,6 +31,7 @@ class Mesh:
     def __init__(self, vertices, faces):
         self.vertices = vertices
         self.faces = faces
+        self.edges = None
 
     def getMeshAreaCentroid(self):
         meshVolume = 0
@@ -73,31 +74,48 @@ class Mesh:
         return normals
 
     def getAllAdjacentFaces(self):
+        if self.edges is None:
+            raise AssertionError("Vous devez faire tourner getAllFaceEdges avant de lancer getAllAdjacentFaces")
         ajdF = [set() for i in range(len(self.faces))]
-        for i in range(len(self.faces)):
-            for j in range(i + 1, len(self.faces)):
-                if len(set(self.faces[i]).intersection(self.faces[j])) > 1:
-                    ajdF[i].add(j)
-                    ajdF[j].add(i)
+        corrEdges = {}
+        for i in range(len(self.edges)):
+            for j in self.edges[i]:
+                if corrEdges.get(j,None) is not None:
+                    ajdF[corrEdges[j]].add(i)
+                    ajdF[i].add(corrEdges[j])
+                else:
+                    corrEdges[j] = i
         return ajdF
 
     def getAllFaceEdges(self):
         faceEdges = []
-        correspondance = []
+        correspondance = {}
         for face in self.faces:
-            p1 = findEdgeInCorr(self.vertices[face[0]] - self.vertices[face[1]], correspondance)
-            if p1 == len(correspondance):
-                correspondance.append(self.vertices[face[0]] - self.vertices[face[1]])
-            p2 = findEdgeInCorr(self.vertices[face[0]] - self.vertices[face[2]], correspondance)
-            if p2 == len(correspondance):
-                correspondance.append(self.vertices[face[0]] - self.vertices[face[2]])
-            p3 = findEdgeInCorr(self.vertices[face[2]] - self.vertices[face[1]], correspondance)
-            if p3 == len(correspondance):
-                correspondance.append(self.vertices[face[2]] - self.vertices[face[1]])
-
-            faceEdges.append([p1, p2, p3])
+            fE = []
+            for i in range(3):
+                key = coordsToString(self.vertices[face[i]], self.vertices[face[i-1]])
+                idE = correspondance.get(key, None)
+                if idE is None:
+                    correspondance[key] = len(correspondance.keys())
+                    idE = correspondance[key]
+                fE.append(idE)
+            faceEdges.append(fE)
+        self.edges = faceEdges
         return faceEdges
 
+def coordsToString(c1, c2):
+    if ordonne(c1, c2):
+        tmp = c1
+        c1 = c2
+        c2 = tmp
+    return str(c1[0]) + str(c2[0]) + str(c1[1]) + str(c2[1]) + str(c1[2]) + str(c2[2])
+
+def ordonne(vectice1, vectice2):
+    if vectice1[0] != vectice2[0]:
+        return vectice1[0] > vectice2[0]
+    if vectice1[1] != vectice2[1]:
+        return vectice1[1] > vectice2[1]
+    return vectice1[2] > vectice2[2]
 
 class Proxy:
     def __init__(self, regionIndex, faceIndexes, proxyNormal=None):
@@ -598,11 +616,11 @@ def main():
     areasGlobal = meshGlobal.getAllFacesArea()
     print("areas : ", time.time() - st)
     st = time.time()
-    adjacencyGlobal = meshGlobal.getAllAdjacentFaces()
-    print("adjacency : ", time.time() - st)
-    st = time.time()
     edgesGlobal = meshGlobal.getAllFaceEdges()
     print("edges : ", time.time() - st)
+    st = time.time()
+    adjacencyGlobal = meshGlobal.getAllAdjacentFaces()
+    print("adjacency : ", time.time() - st)
     nbProxys = int(input("Combien de régions ?"))
     proxysGlobal = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
     RefreshAllProxys([], proxysGlobal, meshGlobal)
