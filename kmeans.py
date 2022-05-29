@@ -7,9 +7,6 @@ import itertools
 import sys
 import polyscope.imgui as psim
 
-ID_MESH_LAST = 0
-
-
 def calculateAreaOfTriangularFace(vect1, vect2):
     return np.linalg.norm(
         np.array(
@@ -99,21 +96,19 @@ class Mesh:
             faceEdges.append([p1, p2, p3])
         return faceEdges
 
-
 class Proxy:
-    def __init__(self, regionIndex, faceIndexes, proxyNormal=None, vertices=None, faces=None):
+    def __init__(self, regionIndex, faceIndexes, proxyNormal=None):
         self.regionIndex = regionIndex
         self.faceIndexes = faceIndexes
         self.proxyNormal = proxyNormal
         self.polyMesh = None
-        self.vertices = vertices
-        self.faces = faces
 
-    def draw(self, color):
+    def draw(self, color, globalVertices, globalFaces):
         if self.polyMesh:
             self.undraw()
         self.polyMesh = generateId()
-        ps.register_surface_mesh(self.polyMesh, self.vertices, self.faces, color=color)
+        verticesProxy, facesProxy = GrowSeeds(self.faceIndexes, globalFaces, globalVertices)
+        ps.register_surface_mesh(self.polyMesh, verticesProxy, facesProxy, color=color)
 
     def undraw(self):
         try:
@@ -124,6 +119,8 @@ class Proxy:
         except TypeError:
             pass
 
+    def __str__(self):
+        return self.regionIndex + " : " + str(self.faceIndexes) + " - " + str(self.proxyNormal) + " - " + str(self.polyMesh)
 
 class QueueElement:
     def __init__(self, error, regionIndex, index):
@@ -131,32 +128,33 @@ class QueueElement:
         self.regionIndex = regionIndex
         self.index = index
 
+    def __str__(self):
+        return "Face " + str(self.index) + " of region "+ str(self.regionIndex) + " : " + str(self.error)
 
+"""
+Fonction principale
+"""
 def KMeans(n, proxys, faceNormals, vertices, faceVertexIndexes, areaFaces, faceEdges, adjacentToFaces):
     for i in range(n):
+        # Actualise les régions (rajoute les normales)
         proxys = GetProxy(proxys)
+        # On récupère les graines de chaque région
         regions = GetProxySeed(proxys, faceNormals, areaFaces)
+        # On construit une file contenant toutes les faces...
         queue, assignedIndexes = BuildQueue(regions, faceNormals, areaFaces, adjacentToFaces)
         regions, worst = AssignToRegion(faceNormals, areaFaces, adjacentToFaces, regions, queue, assignedIndexes)
         regions = SplitRegion(faceNormals, areaFaces, adjacentToFaces, regions, worst)
         adjacentRegions = FindAdjacentRegions(faceEdges, regions)
         regions = FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces)
-        newProxys = []
-        for region in regions:
-            newProxyIndexes = region.faceIndexes
-            verticesProxy, facesProxy = GrowSeeds(region.faceIndexes,
-                                                  faceVertexIndexes,
-                                                  vertices)
-            newProxys.append(Proxy(region.regionIndex, newProxyIndexes, vertices=verticesProxy, faces=facesProxy))
-        proxys = newProxys
+        proxys = regions
     return proxys
 
 
-def RefreshAllProxys(oldProxys, newProxys):
+def RefreshAllProxys(oldProxys, newProxys, mesh):
     for proxy in oldProxys:
         proxy.undraw()
     for proxy in newProxys:
-        proxy.draw(Randomcolor())
+        proxy.draw(Randomcolor(), mesh.vertices, mesh.faces)
 
 
 def FindRegion(regions, index):
@@ -208,8 +206,9 @@ def GetProxy(proxys):
 def GetProxyNormal(indexes):
     proxyNormal = np.array([0, 0, 0])
     for index in indexes:
-        proxyNormal = np.add(proxyNormal, 1)
-    proxyNormal = proxyNormal / np.linalg.norm(proxyNormal)
+        proxyNormal = np.add(proxyNormal, normalsGlobal[index])
+    if proxyNormal[0] != 0 or proxyNormal[1] != 0 or proxyNormal[2] != 0:
+        proxyNormal = proxyNormal / np.linalg.norm(proxyNormal)
     return proxyNormal
 
 
@@ -225,7 +224,7 @@ def GetProxySeed(proxys, faceNormals, areaFaces):
                              faceNormals,
                              areaFaces,
                              proxyNormal)
-        errors.sort(key=lambda x: x.error)
+        errors.sort(key=lambda x: -x.error)
         seedFaceIndex = errors.pop().index
         region = Proxy(proxy.regionIndex,
                        [seedFaceIndex],
@@ -255,24 +254,35 @@ def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
     return calculateNewElementsOfQueue(queue, region.regionIndex, newFaces, region.proxyNormal, areaFaces, faceNormals)
 
 
+def findAndPopMP(queue):
+    index = 0
+    maxE = -1
+    for i in range(len(queue)):
+        if queue[i].error > maxE:
+            maxE=queue[i].error
+            index = i
+    return queue, queue.pop(index)
+
 def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
     globalQueue = []
     assignedIndexes = set(assignedIndexes)
+
     while queue:
-        mostPriority = queue.pop()
+        queue, mostPriority = findAndPopMP(queue)
         faceIndex = mostPriority.index
         if faceIndex not in assignedIndexes:
             globalQueue.append(mostPriority)
             region = FindRegion(regions, mostPriority.regionIndex)
             region.faceIndexes.append(faceIndex)
             assignedIndexes.add(faceIndex)
-            newAdjacentFaces = adjacentFaces[faceIndex]
+            newAdjacentFaces = set(adjacentFaces[faceIndex])
             newAdjacentFaces -= assignedIndexes
             queue = UpdateQueueNew(region,
                                    faceNormals,
                                    areaFaces,
                                    queue,
                                    newAdjacentFaces)
+
 
     globalQueue.sort(key=lambda x: -x.error)
     try:
@@ -282,7 +292,6 @@ def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assign
         randomReg = random.randrange(len(regions))
         randomRegFace = random.randrange(len(regions[randomReg]))
         worst = QueueElement(0.0, regions[randomReg].regionIndex, regions[randomReg].faceIndexes[randomRegFace])
-
     return regions, worst
 
 
@@ -299,7 +308,7 @@ def AssignToWorstRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, a
                 if regionIndex == region.regionIndex:
                     region.faceIndexes.append(faceIndex)
                     assignedIndexes.add(faceIndex)
-                    s = adjacentFaces[faceIndex]
+                    s = set(adjacentFaces[faceIndex])
                     s &= regionDomain
                     s -= assignedIndexes
                     if s:
@@ -394,6 +403,9 @@ def FindRegionsToCombine(regions, adjacentRegions, faceNormals, areaFaces):
                          [params["regionsToCombine"]])
 
 
+"""
+Permet de générer les meshs à dessiner pour polyscope
+"""
 def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices):
     verticesOfRegionByFace = [faceVertexIndexes[i] for i in subFaceIndexes]
     verticesOfRegion = set([i for sublist in verticesOfRegionByFace for i in sublist])
@@ -408,17 +420,24 @@ def GrowSeeds(subFaceIndexes, faceVertexIndexes, vertices):
     newVertices = list(newVertices.values())
     return np.array(newVertices), newFaceIndexes
 
-
+"""
+Gère les ids
+"""
+ID_MESH_LAST = 0
 def generateId():
     global ID_MESH_LAST
     ID_MESH_LAST += 1
     return str(ID_MESH_LAST)
 
-
+"""
+Renvoie une couleur aléatoire
+"""
 def Randomcolor():
     return random.randint(0, 255) / 255, random.randint(0, 255) / 255, random.randint(0, 255) / 255
 
-
+"""
+Crée un nombre nb de régions avec un face aléatoire
+"""
 def generateNRegions(mesh, nb, adjacency):
     listFaces = mesh.faces[:]
     regions = []
@@ -451,7 +470,7 @@ def corpse():
             edgesGlobal,
             adjacencyGlobal
         )
-        RefreshAllProxys(proxysGlobal, newProxys)
+        RefreshAllProxys(proxysGlobal, newProxys, meshGlobal)
         proxysGlobal = newProxys
 
 
@@ -478,7 +497,7 @@ def main():
         vertsGlobal = np.array([[1., 0., 0.], [-1., 0., 0.], [0., 1., 0.], [0., -1., 0.], [0., 0., 1.], [0., 0., -1.]])
         facesGlobal = [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
     else:
-        nomObj = input("Entrez le nom du .obj (disponible normalement : 'helmet.obj'")
+        nomObj = input("Entrez le nom du .obj (disponible normalement : 'helmet.obj', 'table.obj'\n")
         obj = load_obj(nomObj, triangulate=True)
         vertsGlobal = obj.only_coordinates()
         facesGlobal = obj.only_faces()
@@ -500,13 +519,7 @@ def main():
     nbProxys = int(input("Combien de régions ?"))
     ps.init()
     proxysGlobal = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
-    newP = []
-    for p in proxysGlobal:
-        verticesProxy, facesProxy = GrowSeeds(p.faceIndexes, meshGlobal.faces,meshGlobal.vertices)
-        newP.append(Proxy(p.regionIndex, p.faceIndexes, vertices=verticesProxy, faces=facesProxy))
-    proxysGlobal = newP
-    for p in proxysGlobal:
-        p.draw(Randomcolor())
+    RefreshAllProxys([], proxysGlobal, meshGlobal)
     ps.set_user_callback(corpse)
     ps.show()
 
