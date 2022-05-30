@@ -37,7 +37,7 @@ insérer l'affichage avec polyscope
 
 dans le futur :
 
-calculer meilleur plan pour représenter chaque région
+V calculer meilleur plan pour représenter chaque région
 tweak le code pour faire en sorte que au lieu de faire un nombre d'exécution arbitraire, on s'arrête à la place quand le taux d'erreur est inférieur à un seuil donné
 
 choses à créer/adapter avant de passer dans kmeans:
