@@ -104,12 +104,15 @@ class Mesh:
         self.edges = faceEdges
         return faceEdges
 
+def coStr(nb):
+    return str(nb) if nb < 0 else "+" + str(nb)
+
 def coordsToString(c1, c2):
     if ordonne(c1, c2):
         tmp = c1
         c1 = c2
         c2 = tmp
-    return str(c1[0]) + str(c2[0]) + str(c1[1]) + str(c2[1]) + str(c1[2]) + str(c2[2])
+    return coStr(c1[0]) + coStr(c2[0]) + coStr(c1[1]) + coStr(c2[1]) + coStr(c1[2]) + coStr(c2[2])
 
 def ordonne(vectice1, vectice2):
     if vectice1[0] != vectice2[0]:
