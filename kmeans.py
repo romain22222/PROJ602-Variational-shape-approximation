@@ -576,13 +576,19 @@ def jsonToMesh(j):
     mRet.edges = j["edges"]
     return mRet
 
+def populateProxys(j):
+    proxys = InitProxyList()
+    for p in j:
+        InsertRegions(proxys, jsonToProxy(p))
+    return proxys
+
 def saveState(stateName = None):
     global fileName
     jsonToSave = json.dumps({
         "nbExec": nbExec, # OK
         "vertsGlobal":ndArrayToArray(vertsGlobal),
         "facesGlobal":facesGlobal,
-        "proxysGlobal":[proxyToJson(p) for p in proxysGlobal],
+        "proxysGlobal":[proxyToJson(p) for p in proxysGlobal.values()],
         "normalsGlobal":normalsGlobal, # OK
         "meshGlobal":meshToJson(meshGlobal),
         "areasGlobal":areasGlobal,
@@ -609,7 +615,7 @@ def loadState(stateName):
         nbExec = data["nbExec"]
         vertsGlobal = arrayToNdArray(data["vertsGlobal"])
         facesGlobal = data["facesGlobal"]
-        proxysGlobal = [jsonToProxy(p) for p in data["proxysGlobal"]]
+        proxysGlobal = populateProxys(data["proxysGlobal"])
         normalsGlobal = data["normalsGlobal"]
         meshGlobal = jsonToMesh(data["meshGlobal"])
         areasGlobal = data["areasGlobal"]
@@ -717,7 +723,7 @@ def main():
         vertsGlobal = np.array([[1., 0., 0.], [-1., 0., 0.], [0., 1., 0.], [0., -1., 0.], [0., 0., 1.], [0., 0., -1.]])
         facesGlobal = [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
     else:
-        nomObj = input("Entrez le nom du .obj (disponible normalement : 'arm.obj', 'bubble.obj'\n")
+        nomObj = input("Entrez le nom du .obj (disponible normalement : 'arm.obj', 'bubble.obj')\n")
         obj = load_obj(nomObj, triangulate=True)
         vertsGlobal = obj.only_coordinates()
         facesGlobal = obj.only_faces()
