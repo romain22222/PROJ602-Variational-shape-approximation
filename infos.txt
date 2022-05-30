@@ -3,7 +3,7 @@ polyscope
 déroulement de l'algo
 
 execution n fois :
-	on récupère les informations de chaque région actuelle (barycentre, normale, les faces qu'il la compose)
+	on récupère les informations de chaque région actuelle (barycentre, normale, les faces qui la compose)
 
 	on récupère les faces qui représentent le mieux chaque région (barycentre et normale proches de ceux de la région) -> faces graines
 	(cas où l'on vient de commencer : toutes les faces représentent leur propre région)
