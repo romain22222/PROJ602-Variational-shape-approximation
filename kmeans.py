@@ -6,6 +6,7 @@ import time
 import itertools
 import sys
 import polyscope.imgui as psim
+import json
 
 
 def calculateAreaOfTriangularFace(vect1, vect2):
@@ -522,9 +523,81 @@ def generateNRegions(mesh, nb, adjacency):
         faceDrawn.append(face)
     return regions
 
+def ndArrayToArray(ndA):
+    retArr = []
+    for v in ndA:
+        retArr.append(list(v))
+    return retArr
+
+def arrayToNdArray(a):
+    return np.array(a)
+
+def proxyToJson(p):
+    return {
+        "regionIndex": p.regionIndex,
+        "faceIndexes": p.faceIndexes,
+        "proxyNormal": list(p.proxyNormal) if p.proxyNormal is not None else p.proxyNormal
+    }
+
+def jsonToProxy(j):
+    return Proxy(j["regionIndex"], j["faceIndexes"], np.array(j["proxyNormal"]) if j["proxyNormal"] else j["proxyNormal"])
+
+def meshToJson(m):
+    return {
+        "vertices": ndArrayToArray(m.vertices),
+        "faces": m.faces,
+        "edges": m.edges
+    }
+
+def jsonToMesh(j):
+    mRet = Mesh(arrayToNdArray(j["vertices"]), j["faces"])
+    mRet.edges = j["edges"]
+    return mRet
+
+def saveState(stateName = None):
+    jsonToSave = json.dumps({
+        "nbExec": nbExec, # OK
+        "vertsGlobal":ndArrayToArray(vertsGlobal),
+        "facesGlobal":facesGlobal,
+        "proxysGlobal":[proxyToJson(p) for p in proxysGlobal],
+        "normalsGlobal":normalsGlobal, # OK
+        "meshGlobal":meshToJson(meshGlobal),
+        "areasGlobal":areasGlobal,
+        "edgesGlobal":edgesGlobal,
+        "adjacencyGlobal":[list(s) for s in adjacencyGlobal],
+        "nbProxys":nbProxys, # OK
+        "ID_MESH_LAST": ID_MESH_LAST # OK
+    })
+    print(stateName)
+    while stateName.endswith(".json"):
+        stateName = stateName[:-5]
+    print(stateName)
+    if stateName is None or stateName == "name":
+        tab = ["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"]
+        stateName = ""
+        for i in range(20):
+            stateName += tab[random.randrange(0,15)]
+    with open(stateName + '.json', 'w') as outfile:
+        json.dump(jsonToSave, outfile)
+
+def loadState(stateName):
+    global nbExec, vertsGlobal, facesGlobal, proxysGlobal, normalsGlobal, meshGlobal, areasGlobal, edgesGlobal, adjacencyGlobal, nbProxys, ID_MESH_LAST
+    with open(stateName + '.json') as json_file:
+        data = json.loads(json.load(json_file))
+        nbExec = data["nbExec"]
+        vertsGlobal = arrayToNdArray(data["vertsGlobal"])
+        facesGlobal = data["facesGlobal"]
+        proxysGlobal = [jsonToProxy(p) for p in data["proxysGlobal"]]
+        normalsGlobal = data["normalsGlobal"]
+        meshGlobal = jsonToMesh(data["meshGlobal"])
+        areasGlobal = data["areasGlobal"]
+        edgesGlobal = data["edgesGlobal"]
+        adjacencyGlobal = [set(s) for s in data["adjacencyGlobal"]]
+        nbProxys = data["nbProxys"]
+        ID_MESH_LAST = data["ID_MESH_LAST"]
 
 def corpse():
-    global nbExec, vertsGlobal, facesGlobal, proxysGlobal, normalsGlobal, meshGlobal, areasGlobal, edgesGlobal, adjacencyGlobal, nbProxys
+    global nbExec, vertsGlobal, facesGlobal, proxysGlobal, normalsGlobal, meshGlobal, areasGlobal, edgesGlobal, adjacencyGlobal, nbProxys, fileName
     psim.PushItemWidth(150)
     psim.TextUnformatted("Exécuter l'algorithme")
     psim.Separator()
@@ -579,6 +652,22 @@ def corpse():
         RefreshAllProxys(proxysGlobal, tmp, meshGlobal)
         proxysGlobal = tmp
 
+    psim.Separator()
+    psim.TextUnformatted("Sauver / Charger un état")
+    changed, fileName = psim.InputText("Nom du fichier", fileName)
+    if psim.Button("Enregistrer l'état"):
+        saveState(fileName)
+        print("Saved !")
+    psim.SameLine()
+    if psim.Button("Charger l'état"):
+        RefreshAllProxys(proxysGlobal, [], meshGlobal)
+        loadState(fileName)
+        ps.register_surface_mesh("MAIN", vertsGlobal, facesGlobal, color=(0., 1., 0.), edge_color=(0., 0., 0.),
+                                 edge_width=3)
+        RefreshAllProxys([], proxysGlobal, meshGlobal)
+        ps.reset_camera_to_home_view()
+
+
 nbExec = 1
 vertsGlobal = None
 facesGlobal = None
@@ -589,6 +678,7 @@ areasGlobal = None
 edgesGlobal = None
 adjacencyGlobal = None
 nbProxys = None
+fileName = "name"
 
 
 def main():
@@ -622,6 +712,8 @@ def main():
     adjacencyGlobal = meshGlobal.getAllAdjacentFaces()
     print("adjacency : ", time.time() - st)
     nbProxys = int(input("Combien de régions ?"))
+    while nbProxys > len(meshGlobal.faces) or nbProxys < 1:
+        nbProxys = int(input("Combien de régions ?"))
     proxysGlobal = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
     RefreshAllProxys([], proxysGlobal, meshGlobal)
     ps.init()
