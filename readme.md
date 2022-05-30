@@ -150,3 +150,9 @@ Human ear spliting with 30 proxys and n = 7
 
 Découpage d'un bras avec 22 régions, avec n = 2 -
 Arm spliting with 22 proxys and n = 2
+
+---
+![chess_piece100-20.png](chess_piece100-20.png)
+
+Découpage d'une tour d'échecs très détaillée avec 100 régions, avec n = 20 -
+Detailed chess rook spliting with 100 proxys and n = 20
