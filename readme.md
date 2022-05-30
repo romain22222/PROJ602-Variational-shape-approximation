@@ -36,7 +36,8 @@ Afin de permette le bon déroulement du programme, veuillez aller dans votre ter
     python -m pip install numpy
     
     python -m pip install polyscope
-    
+
+Si vous voyez l'erreur `Python est introuvable. ExÚcutez sans argument pour procÚder Ó l`, essayer d'utiliser comme alias au choix `py`, `python3` ou `py3` à la place de `python`
 
 ## Exécution 
 Pour lancer le code, il suffit d'ouvrir `kmeans.py` avec l'interpréteur python.
