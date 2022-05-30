@@ -1,3 +1,6 @@
+![arm22-2-small.png](arm22-2-small.png)
+
+---
 # Variational Shape Approximation
 ## Qu'est ce que la variational shape approximation ? - What is a variational shape approximation ?
 
@@ -8,7 +11,6 @@ Pour obtenir la minimisation, il est nécessaire d'appliquer un algorithme de cl
 It's a shape approximation using a variational approach. 
 This mesh approximation method works by minimising the error between the original mesh and n face sets, named proxys.
 To get the minimisation, you must apply a clustering algorithm onto the original mesh triangles, while alterning partitionning and best local approximation.
-
 ---
 
 ## Notre code - Our Code
@@ -18,7 +20,6 @@ Ainsi, un affichage se présente à vous, permettant de déterminer les différe
 
 Our code allows you to get this approximation for a given .obj file.
 Here, a window will show, giving you the several approximated zones.
-
 ---
 
 ### Son déroulement - His progress
@@ -128,6 +129,20 @@ It's your turn to play to get the prettiest approximation proxys !
 
 Découpage d'une sphère avec 15 régions, avec n = 5 -
 Sphere spliting with 15 proxys and n = 5
+
+---
+
+![vase15-15.png](vase15-15.png)
+
+Découpage d'un vase avec 15 régions, avec n = 15 -
+Vase spliting with 15 proxys and n = 15
+
+---
+
+![ear30-7.png](ear30-7.png)
+
+Découpage d'une oreille humaine avec 30 régions, avec n = 7 -
+Human ear spliting with 30 proxys and n = 7
 
 ---
 
