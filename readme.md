@@ -157,3 +157,9 @@ Arm spliting with 22 proxys and n = 2
 
 Découpage d'une tour d'échecs très détaillée avec 100 régions, avec n = 20 -
 Detailed chess rook spliting with 100 proxys and n = 20
+
+---
+![image](https://user-images.githubusercontent.com/29299679/171200658-b0119792-4ee5-4687-851d-aa0fd62838cb.png)
+
+Découpage de la lune en 4K avec 500 régions et n = 100 -
+4K moon spliting with 500 proxys and n = 100
