@@ -97,7 +97,7 @@ Si vous le voulez, ajoutez dans le dossier du programme votre `.obj` favori, et 
 Vient ensuite le choix du nombre de régions :
 
 - Si vous mettez peu de régions (<5), vous obtiendrez des régions très approximatives.
-- Si vous mettez beaucoup de régions (>20), vous obtiendrez des régions très spécialisés, cependant faites attention aux temps de calculs.
+- Si vous mettez beaucoup de régions (>20), vous obtiendrez des régions très spécialisées, cependant faites attention aux temps de calcul.
 
 Après avoir entré le nombre de régions, vous atterrissez sur l'interface de polyscope. En haut à droite se trouve le petit menu répertoriant les différentes options disponibles citées au dessus.
 
