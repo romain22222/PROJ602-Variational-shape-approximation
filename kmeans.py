@@ -347,7 +347,7 @@ def findWorst(queue):
 
 """
 Distribue les faces aux différentes régions en fonction de leur proximité avec celles ci
-Complexité de la fonction estimé à n**2log(n), n = 3*nbFacesFigure
+Complexité de la fonction estimé à n**2*log(n), n = 3*nbFacesFigure
 """
 def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
     globalQueue = []
@@ -724,7 +724,7 @@ def main():
         vertsGlobal = np.array([[1., 0., 0.], [-1., 0., 0.], [0., 1., 0.], [0., -1., 0.], [0., 0., 1.], [0., 0., -1.]])
         facesGlobal = [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
     else:
-        nomObj = input("Entrez le nom du .obj (disponible normalement : 'arm.obj', 'bubble.obj')\n")
+        nomObj = input("Entrez le nom du .obj (disponible normalement : 'arm.obj', 'bubble.obj', 'chess_piece.obj', 'ear.obj', 'vase.obj', ((('moon.obj'))))\n")
         obj = load_obj(nomObj, triangulate=True)
         vertsGlobal = obj.only_coordinates()
         facesGlobal = obj.only_faces()
@@ -742,9 +742,9 @@ def main():
     st = time.time()
     adjacencyGlobal = meshGlobal.getAllAdjacentFaces()
     print("adjacency : ", time.time() - st)
-    nbProxys = int(input("Combien de régions ?"))
+    nbProxys = int(input("Combien de régions : "))
     while nbProxys > len(meshGlobal.faces) or nbProxys < 1:
-        nbProxys = int(input("Combien de régions ?"))
+        nbProxys = int(input("Combien de régions : "))
     proxysGlobal = generateNRegions(meshGlobal, nbProxys, adjacencyGlobal)
     RefreshAllProxys(InitProxyList(), proxysGlobal, meshGlobal)
     ps.init()
