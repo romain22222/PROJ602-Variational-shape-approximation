@@ -334,7 +334,7 @@ def findAndPopMP(queue):
         if queue[i].error < minE:
             minE = queue[i].error
             index = i
-    return queue, queue.pop(index)
+    return index
 
 def findWorst(queue):
     index = 0
@@ -347,13 +347,14 @@ def findWorst(queue):
 
 """
 Distribue les faces aux différentes régions en fonction de leur proximité avec celles ci
+Complexité de la fonction estimé à n**2log(n), n = 3*nbFacesFigure
 """
 def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
     globalQueue = []
     assignedIndexes = set(assignedIndexes)
     while queue:
         # HUGE time loss, can't figure out how to reduce the overall complexity
-        queue, mostPriority = findAndPopMP(queue)
+        mostPriority = queue.pop(findAndPopMP(queue))
         faceIndex = mostPriority.index
         if faceIndex not in assignedIndexes:
             globalQueue.append(mostPriority)
@@ -384,7 +385,7 @@ def AssignToWorstRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, a
     assignedIndexes = set(assignedIndexes)
     queue = [i for i in queue if i.index in regionDomain]
     while queue:
-        queue, mostPriority = findAndPopMP(queue)
+        mostPriority = queue.pop(findAndPopMP(queue))
         faceIndex = mostPriority.index
         if faceIndex not in assignedIndexes:
             regionIndex = mostPriority.regionIndex
