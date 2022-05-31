@@ -11,8 +11,8 @@ Pour obtenir la minimisation, il est nécessaire d'appliquer un algorithme de cl
 It's a shape approximation using a variational approach. 
 This mesh approximation method works by minimising the error between the original mesh and n face sets, named proxys.
 To get the minimisation, you must apply a clustering algorithm onto the original mesh triangles, while alterning partitionning and best local approximation.
----
 
+---
 ## Notre code - Our Code
 Notre code permet d'utiliser cette approximation sur une figure .obj choisi. 
 Ainsi, un affichage se présente à vous, permettant de déterminer les différetes zones approximées.
@@ -20,6 +20,7 @@ Ainsi, un affichage se présente à vous, permettant de déterminer les différe
 
 Our code allows you to get this approximation for a given .obj file.
 Here, a window will show, giving you the several approximated zones.
+
 ---
 
 ### Son déroulement - His progress
