@@ -7,7 +7,8 @@ import itertools
 import sys
 import polyscope.imgui as psim
 import json
-
+from queue import PriorityQueue
+from functools import total_ordering
 
 def calculateAreaOfTriangularFace(vect1, vect2):
     return np.linalg.norm(
@@ -148,7 +149,7 @@ class Proxy:
         return self.regionIndex + " : " + str(self.faceIndexes) + " - " + str(self.proxyNormal) + " - " + str(
             self.polyMesh)
 
-
+@total_ordering
 class QueueElement:
     def __init__(self, error, regionIndex, index):
         self.error = error
@@ -158,6 +159,11 @@ class QueueElement:
     def __str__(self):
         return "Face " + str(self.index) + " of region " + str(self.regionIndex) + " : " + str(self.error)
 
+    def __gt__(self, other):
+        return self.error > other.error
+
+    def __eq__(self, other):
+        return self.error == other.error
 
 """
 Fonction principale
@@ -247,12 +253,12 @@ def calculateNewElementsOfQueue(queue, regionIndex, faces, proxyNormal, areaFace
                 paramsFindRegionToCombine["regionsToCombine"] = paramsFindRegionToCombine["mergedRegion"]
                 paramsFindRegionToCombine["maxError"] = error
         else:
-            queue.append(QueueElement(error, regionIndex, index))
+            queue.put(QueueElement(error, regionIndex, index))
     return paramsFindRegionToCombine if isInFindRegionToCombine else queue
 
 
 def MetricError(regionIndex, faceIndexes, faceNormals, areaFaces, proxyNormal):
-    return calculateNewElementsOfQueue([], regionIndex, faceIndexes, proxyNormal, areaFaces, faceNormals)
+    return calculateNewElementsOfQueue(PriorityQueue(), regionIndex, faceIndexes, proxyNormal, areaFaces, faceNormals)
 def UpdateQueueNew(region, faceNormals, areaFaces, queue, newFaces):
     return calculateNewElementsOfQueue(queue, region.regionIndex, newFaces, region.proxyNormal, areaFaces, faceNormals)
 
@@ -296,11 +302,14 @@ def GetProxySeed(proxys, faceNormals, areaFaces):
         faceIndexes = proxy.faceIndexes
         proxyNormal = proxy.proxyNormal
 
-        errors = MetricError(regionIndex,
+        tmp = MetricError(regionIndex,
                              faceIndexes,
                              faceNormals,
                              areaFaces,
                              proxyNormal)
+        errors = []
+        while not tmp.empty():
+            errors.append(tmp.get())
         errors.sort(key=lambda x: -x.error)
         seedFaceIndex = errors.pop().index
         region = Proxy(proxy.regionIndex,
@@ -315,26 +324,20 @@ Rajoute à la queue les newFaces
 def UpdateQueue(region, faceNormals, areaFaces, queue, newFaces):
     regionIndex = region.regionIndex
     proxyNormal = region.proxyNormal
-    newFacesErrors = MetricError(regionIndex,
-                                 newFaces,
-                                 faceNormals,
-                                 areaFaces,
-                                 proxyNormal)
-    queue.extend(newFacesErrors)
-    queue.sort(key=lambda x: x.error)
+    calculateNewElementsOfQueue(queue, regionIndex, newFaces, proxyNormal, areaFaces, faceNormals)
     return queue
 
-"""
-Cherche dans la queue l'élément d'erreur minimal, le supprime de la liste et le retourne
-"""
-def findAndPopMP(queue):
-    index = 0
-    minE = np.inf
-    for i in range(len(queue)):
-        if queue[i].error < minE:
-            minE = queue[i].error
-            index = i
-    return index
+# """
+# Cherche dans la queue l'élément d'erreur minimal, le supprime de la liste et le retourne
+# """
+# def findAndPopMP(queue):
+#     index = 0
+#     minE = np.inf
+#     for i in range(len(queue)):
+#         if queue[i].error < minE:
+#             minE = queue[i].error
+#             index = i
+#     return index
 
 def findWorst(queue):
     index = 0
@@ -347,14 +350,12 @@ def findWorst(queue):
 
 """
 Distribue les faces aux différentes régions en fonction de leur proximité avec celles ci
-Complexité de la fonction estimé à n**2*log(n), n = 3*nbFacesFigure
 """
 def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes):
     globalQueue = []
     assignedIndexes = set(assignedIndexes)
-    while queue:
-        # HUGE time loss, can't figure out how to reduce the overall complexity
-        mostPriority = queue.pop(findAndPopMP(queue))
+    while not queue.empty():
+        mostPriority = queue.get()
         faceIndex = mostPriority.index
         if faceIndex not in assignedIndexes:
             globalQueue.append(mostPriority)
@@ -363,11 +364,12 @@ def AssignToRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assign
             assignedIndexes.add(faceIndex)
             newAdjacentFaces = set(adjacentFaces[faceIndex])
             newAdjacentFaces -= assignedIndexes
-            queue = UpdateQueueNew(region,
-                                   faceNormals,
-                                   areaFaces,
-                                   queue,
-                                   newAdjacentFaces)
+            UpdateQueueNew(region,
+                           faceNormals,
+                           areaFaces,
+                           queue,
+                           newAdjacentFaces)
+
     try:
         worst = findWorst(globalQueue)
     except IndexError:
@@ -383,9 +385,10 @@ Distribue les faces de la pire région dans deux autres régions
 def AssignToWorstRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, assignedIndexes, oldRegionFaces):
     regionDomain = frozenset(oldRegionFaces)
     assignedIndexes = set(assignedIndexes)
-    queue = [i for i in queue if i.index in regionDomain]
-    while queue:
-        mostPriority = queue.pop(findAndPopMP(queue))
+    while not queue.empty():
+        mostPriority = queue.get()
+        if mostPriority.index not in regionDomain:
+            continue
         faceIndex = mostPriority.index
         if faceIndex not in assignedIndexes:
             regionIndex = mostPriority.regionIndex
@@ -397,26 +400,27 @@ def AssignToWorstRegion(faceNormals, areaFaces, adjacentFaces, regions, queue, a
                     s &= regionDomain
                     s -= assignedIndexes
                     if s:
-                        queue = UpdateQueue(region,
-                                            faceNormals,
-                                            areaFaces,
-                                            queue,
-                                            s)
+                        UpdateQueue(region,
+                                    faceNormals,
+                                    areaFaces,
+                                    queue,
+                                    s)
+
 
     return regions
 
 
 def BuildQueue(regions, faceNormals, areaFaces, adjacentToFaces):
     assignedIndexes = []
-    queue = []
+    queue = PriorityQueue()
     for region in regions.values():
         seedIndex = region.faceIndexes[0]
         assignedIndexes.append(seedIndex)
-        queue = UpdateQueue(region,
-                            faceNormals,
-                            areaFaces,
-                            queue,
-                            adjacentToFaces[seedIndex])
+        UpdateQueue(region,
+                    faceNormals,
+                    areaFaces,
+                    queue,
+                    adjacentToFaces[seedIndex])
     return queue, assignedIndexes
 
 
