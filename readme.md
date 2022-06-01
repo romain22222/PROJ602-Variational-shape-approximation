@@ -163,3 +163,9 @@ Detailed chess rook spliting with 100 proxys and n = 20
 
 Découpage de la lune en 4K avec 500 régions et n = 100 -
 4K moon spliting with 500 proxys and n = 100
+
+---
+![image](https://user-images.githubusercontent.com/29299679/171428963-c406ddd6-5182-4fd2-8e43-448700956c4d.png)
+
+Version avec 2000 régions, n = 200 -
+version with 2000 proxys and n = 200
